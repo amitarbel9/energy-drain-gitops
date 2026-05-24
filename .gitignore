@@ -1,46 +1,37 @@
-# Kubernetes & Helm
-*.yaml
-*.yml
-*.json
-!*.template.yaml
-!*.tpl.yaml
-
-# ArgoCD
-argocd/
-argo/
-!argo/crds/
-!argo/apps/
-
-# IDE and Editors
+# IDE and editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS Generated
+# OS generated
 .DS_Store
 Thumbs.db
 
-# Build and Dependencies
+# Build and dependencies
 node_modules/
 dist/
 build/
 out/
 target/
 
-# Environment Variables
+# Environment variables
 .env
 *.env.local
 *.env.*.local
 
-# Logs and Databases
+# Logs and databases
 *.log
 *.db
 *.sqlite
 
-# Secrets (Never commit these!)
+# Helm package artifacts
+*.tgz
+charts/*.tgz
+
+# Secrets
 secrets/
 *.pem
 *.key
-*.crt   
+*.crt
