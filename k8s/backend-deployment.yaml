@@ -1,12 +1,11 @@
+# Deployment for the backend application.
 apiVersion: apps/v1
 kind: Deployment
-
 metadata:
   name: backend
   namespace: lingua-app
   labels:
     app: backend
-
 spec:
   replicas: 1
 

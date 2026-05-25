@@ -1,3 +1,4 @@
+# Namespace to isolate the lingua-app resources in the cluster.
 apiVersion: v1
 kind: Namespace
 metadata:

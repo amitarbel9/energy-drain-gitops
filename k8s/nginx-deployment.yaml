@@ -1,12 +1,11 @@
+# Deployment for the nginx frontend or reverse proxy.
 apiVersion: apps/v1
 kind: Deployment
-
 metadata:
   name: nginx
   namespace: lingua-app
   labels:
     app: nginx
-
 spec:
   replicas: 1
 

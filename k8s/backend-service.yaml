@@ -1,17 +1,14 @@
+# Internal Service exposing the backend deployment.
 apiVersion: v1
 kind: Service
-
 metadata:
   name: backend-service
   namespace: lingua-app
-
 spec:
   selector:
     app: backend
-
   ports:
     - protocol: TCP
       port: 5000
       targetPort: 5000
-
   type: ClusterIP
