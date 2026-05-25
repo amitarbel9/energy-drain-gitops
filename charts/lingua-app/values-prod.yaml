@@ -1,0 +1,61 @@
+# values-prod.yaml overrides chart defaults for production.
+# This file is applied after values.yaml during `helm install -f`.
+
+namespace:
+  name: lingua-app-prod
+
+backend:
+  replicas: 3
+  image:
+    tag: "1.0.0"
+
+  database:
+    mongoUrl: "mongodb://mongodb-prod.c789def123.mongodb.net:27017"
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  env:
+    - name: AWS_REGION
+      value: "us-east-1"
+    - name: ENVIRONMENT
+      value: "production"
+    - name: LOG_LEVEL
+      value: "warn"
+
+inginx:
+  replicas: 2
+  image:
+    tag: "1.0.2"
+
+  service:
+    type: LoadBalancer
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: lingua-app.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: lingua-prod-tls
+      hosts:
+        - lingua-app.example.com
