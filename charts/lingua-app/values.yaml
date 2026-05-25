@@ -53,7 +53,7 @@ nginx:
   # nginx.name is the base name for nginx Deployment and Service
   name: nginx
   # nginx.replicas is the desired replica count for nginx pods
-  replicas: 2
+  replicas: 1
   image:
     # nginx.image.repository is the nginx image repository
     repository: lingua-nginx
