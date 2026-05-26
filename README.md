@@ -20,13 +20,13 @@ It includes both the traditional `k8s/` manifests and the beginnings of a Helm/A
 The current manifests deploy the following components into the `lingua-app` namespace:
 
 - `backend`
-  - `Deployment` using image `lingua-backend:1.0.0`
+  - `Deployment` using image `lingua-backend:x.y.z`
   - `ClusterIP` service on port `5000`
   - Health probes and resource requests/limits configured
 
 - `nginx`
-  - `Deployment` using image `lingua-nginx:1.0.2`
-  - `NodePort` service on port `80` exposed at node port `30080`
+  - `Deployment` using image `lingua-nginx:x.y.z`
+  - `Ingress` service on port `80`
   - Health probes and resource requests/limits configured
 
 ## AWS Deployment Roadmap
@@ -117,43 +117,43 @@ Local startup steps:
 
 1. Clone the repository:
 
-   ```bash
-git clone <repo-url>
-cd language-learning-gitops
-```
+    ```bash
+    git clone <repo-url>
+    cd language-learning-gitops
+    ```
 
 2. Build or provide the application images locally if needed:
 
-   ```bash
-# Example if images are built locally
-docker build -t lingua-backend:1.0.0 ./path/to/backend
-docker build -t lingua-nginx:1.0.2 ./path/to/nginx
-```
+    ```bash
+    # Example if images are built locally
+    docker build -t lingua-backend:x.y.z ./path/to/backend
+    docker build -t lingua-nginx:x.y.z ./path/to/nginx
+    ```
 
 3. Ensure MongoDB is available to the backend. For example, run MongoDB locally or in the cluster and update the backend connection string if needed.
 
 4. Apply the current Kubernetes manifests:
 
-   ```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/backend-deployment.yaml
-kubectl apply -f k8s/backend-service.yaml
-kubectl apply -f k8s/nginx-deployment.yaml
-kubectl apply -f k8s/nginx-service.yaml
-```
+    ```bash
+    kubectl apply -f k8s/namespace.yaml
+    kubectl apply -f k8s/backend-deployment.yaml
+    kubectl apply -f k8s/backend-service.yaml
+    kubectl apply -f k8s/nginx-deployment.yaml
+    kubectl apply -f k8s/nginx-service.yaml
+    ```
 
 5. Confirm the services are running:
 
-   ```bash
-kubectl get all -n lingua-app
-kubectl get svc -n lingua-app
-```
+    ```bash
+    kubectl get all -n lingua-app
+    kubectl get svc -n lingua-app
+    ```
 
 6. Access the frontend:
 
-- If using `NodePort`, open `http://<node-ip>:30080`
-- If your local cluster supports `host.docker.internal`, use that host and port `30080`
-- Alternatively, use `kubectl port-forward svc/nginx 8080:80 -n lingua-app` and open `http://localhost:8080`
+    - If using `NodePort`, open `http://<node-ip>:30080`
+    - If your local cluster supports `host.docker.internal`, use that host and port `30080`
+    - Alternatively, use `kubectl port-forward svc/nginx 8080:80 -n lingua-app` and open `http://localhost:8080`
 
 ## Notes
 
