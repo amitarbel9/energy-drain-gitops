@@ -118,7 +118,7 @@ Local startup steps:
 1. Clone the repository:
 
     ```bash
-    git clone <repo-url>
+    git clone https://github.com/mild-byte/language-learninga-gitops.git   
     cd language-learning-gitops
     ```
 
