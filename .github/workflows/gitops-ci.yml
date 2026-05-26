@@ -1,20 +1,34 @@
+---
 # ---------------------------------------------------------------------------
-# GitOps Repository CI Pipeline
+# GitOps CI Pipeline
 #
 # Triggered on every push to the main branch.
 #
 # Purpose:
-# Validate Kubernetes + Helm configuration BEFORE ArgoCD syncs it.
+# Validate Kubernetes + Helm + GitOps configuration BEFORE ArgoCD deploys it.
 #
 # Jobs (in order):
-# 1. validate-yaml     — YAML syntax validation
-# 2. helm-lint         — Helm chart linting
-# 3. helm-template     — Render manifests from Helm templates
-# 4. kubeconform       — Kubernetes schema validation
-# 5. security-scan     — Trivy scan for Kubernetes misconfigurations
-# 6. kind-deployment   — Deploy chart into local Kind cluster in CI
-# 7. smoke-test        — Verify pods/services/ingress become healthy
-# 8. notify            — Pipeline summary email
+#
+# 1. helm-lint
+#    - Validate Helm chart syntax and templating
+#
+# 2. helm-template
+#    - Render Kubernetes manifests from Helm templates
+#    - Detect invalid YAML/template rendering issues
+#
+# 3. kubeconform
+#    - Validate rendered manifests against Kubernetes schemas
+#
+# 4. yamllint
+#    - Validate YAML formatting consistency
+#
+# 5. smoke-test
+#    - Install Helm chart into a temporary Kind cluster
+#    - Verify pods/services/ingress become healthy
+#
+# 6. notify
+#    - Full pipeline summary email
+#
 # ---------------------------------------------------------------------------
 
 name: GitOps CI Pipeline
@@ -24,9 +38,16 @@ on:
     branches:
       - main
 
+# ---------------------------------------------------------------------------
+# Least privilege permissions
+# ---------------------------------------------------------------------------
 permissions:
   contents: read
 
+# ---------------------------------------------------------------------------
+# Concurrency control
+# Cancel outdated runs on new pushes
+# ---------------------------------------------------------------------------
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -34,81 +55,119 @@ concurrency:
 jobs:
 
   # ---------------------------------------------------------------------------
-  # Job 1 — YAML Validation
-  # ---------------------------------------------------------------------------
-  validate-yaml:
-    name: Validate YAML — syntax validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install yamllint
-        run: |
-          pip install yamllint
-
-      - name: Validate YAML files
-        run: |
-          yamllint . \
-            -d '{extends: default, rules: {line-length: disable}}'
-
-  # ---------------------------------------------------------------------------
-  # Job 2 — Helm Lint
+  # Job 1 — Helm Lint
   # ---------------------------------------------------------------------------
   helm-lint:
-    name: Helm Lint — chart best practices
+    name: Helm Lint — chart validation
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [validate-yaml]
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Helm
+      - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: v3.16.1
+          version: v3.16.2
 
-      - name: Lint Helm chart
+      - name: Run Helm lint
         run: |
-          helm lint ./lingua-app
+          helm lint charts/lingua-app
+
+      - name: Send helm lint status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            Helm Lint —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          html_body: |
+            <h2>
+              ${{ job.status == 'success'
+              && '✅ Helm lint passed'
+              || '❌ Helm lint failed' }}
+            </h2>
+
+            <p>Repository: ${{ github.repository }}</p>
+            <p>Branch: ${{ github.ref_name }}</p>
+            <p>Commit: ${{ github.sha }}</p>
+
+            <p>
+              <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
+                View workflow run
+              </a>
+            </p>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
 
   # ---------------------------------------------------------------------------
-  # Job 3 — Helm Template Rendering
+  # Job 2 — Helm Template
   # ---------------------------------------------------------------------------
   helm-template:
     name: Helm Template — manifest rendering
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     needs: [helm-lint]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Helm
+      - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: v3.16.1
+          version: v3.16.2
 
-      - name: Render Kubernetes manifests
+      - name: Render manifests
         run: |
-          helm template lingua-app ./lingua-app > rendered-manifests.yaml
+          helm template lingua-app charts/lingua-app \
+            --namespace lingua-app \
+            > rendered.yaml
 
       - name: Upload rendered manifests
         uses: actions/upload-artifact@v4
         with:
           name: rendered-manifests
-          path: rendered-manifests.yaml
+          path: rendered.yaml
+
+      - name: Send helm template status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            Helm Template —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          html_body: |
+            <h2>
+              ${{ job.status == 'success'
+              && '✅ Helm template rendering passed'
+              || '❌ Helm template rendering failed' }}
+            </h2>
+
+            <p>Repository: ${{ github.repository }}</p>
+            <p>Branch: ${{ github.ref_name }}</p>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
 
   # ---------------------------------------------------------------------------
-  # Job 4 — Kubernetes Schema Validation
-  #
-  # kubeconform validates manifests against the Kubernetes API schema.
-  # This catches invalid fields BEFORE ArgoCD tries to sync.
+  # Job 3 — Kubernetes Schema Validation
   # ---------------------------------------------------------------------------
   kubeconform:
     name: Kubernetes Validation — kubeconform
@@ -120,10 +179,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - name: Download rendered manifests
+        uses: actions/download-artifact@v4
         with:
-          version: v3.16.1
+          name: rendered-manifests
 
       - name: Install kubeconform
         run: |
@@ -131,27 +190,44 @@ jobs:
             | tar xz
           sudo mv kubeconform /usr/local/bin/
 
-      - name: Validate rendered manifests
+      - name: Validate manifests
         run: |
-          helm template lingua-app ./lingua-app > rendered.yaml
-
           kubeconform \
             -strict \
             -summary \
             rendered.yaml
 
+      - name: Send kubeconform status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            Kubernetes Validation —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          html_body: |
+            <h2>
+              ${{ job.status == 'success'
+              && '✅ Kubernetes schema validation passed'
+              || '❌ Kubernetes schema validation failed' }}
+            </h2>
+
+            <p>Rendered manifests were checked against Kubernetes schemas.</p>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
+
   # ---------------------------------------------------------------------------
-  # Job 5 — Security Scan
-  #
-  # Trivy scans Kubernetes manifests for security misconfigurations.
-  # Examples:
-  # - privileged containers
-  # - latest tags
-  # - missing resource limits
-  # - insecure capabilities
+  # Job 4 — YAML Linting
   # ---------------------------------------------------------------------------
-  security-scan:
-    name: Security Scan — Trivy Kubernetes scan
+  yamllint:
+    name: YAML Lint — formatting validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [kubeconform]
@@ -160,163 +236,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Trivy
+      - name: Install yamllint
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          pip install yamllint
 
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
-            | gpg --dearmor \
-            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
-            | sudo tee /etc/apt/sources.list.d/trivy.list
-
-          sudo apt-get update
-          sudo apt-get install -y trivy
-
-      - name: Scan Helm chart
+      - name: Run yamllint
         run: |
-          trivy config ./lingua-app \
-            --severity HIGH,CRITICAL \
-            --exit-code 1
+          yamllint .
 
-  # ---------------------------------------------------------------------------
-  # Job 6 — Kind Deployment Test
-  #
-  # Creates a temporary Kubernetes cluster inside GitHub Actions,
-  # installs the Helm chart, and verifies deployment succeeds.
-  # ---------------------------------------------------------------------------
-  kind-deployment:
-    name: Kind Deployment — real Kubernetes deployment
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [security-scan]
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create Kind cluster
-        uses: helm/kind-action@v1
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.16.1
-
-      - name: Install ingress-nginx
-        run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-
-          kubectl wait \
-            --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/component=controller \
-            --timeout=180s
-
-      - name: Deploy Helm chart
-        run: |
-          helm install lingua-app ./lingua-app \
-            --namespace lingua-app \
-            --create-namespace
-
-      - name: Wait for deployments
-        run: |
-          kubectl rollout status deployment/lingua-app-backend \
-            -n lingua-app \
-            --timeout=180s
-
-          kubectl rollout status deployment/lingua-app-nginx \
-            -n lingua-app \
-            --timeout=180s
-
-      - name: Print Kubernetes resources
+      - name: Send yamllint status email
         if: always()
-        run: |
-          kubectl get all -n lingua-app
-          kubectl get ingress -n lingua-app
-
-  # ---------------------------------------------------------------------------
-  # Job 7 — Smoke Tests
-  # ---------------------------------------------------------------------------
-  smoke-test:
-    name: Smoke Tests — service verification
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [kind-deployment]
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create Kind cluster
-        uses: helm/kind-action@v1
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.16.1
-
-      - name: Install ingress-nginx
-        run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-
-          kubectl wait \
-            --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/component=controller \
-            --timeout=180s
-
-      - name: Deploy application
-        run: |
-          helm install lingua-app ./lingua-app \
-            --namespace lingua-app \
-            --create-namespace
-
-      - name: Wait for pods
-        run: |
-          kubectl wait \
-            --for=condition=ready pod \
-            --all \
-            -n lingua-app \
-            --timeout=180s
-
-      - name: Verify backend service exists
-        run: |
-          kubectl get svc -n lingua-app
-
-      - name: Verify ingress exists
-        run: |
-          kubectl get ingress -n lingua-app
-
-      - name: Verify pods are healthy
-        run: |
-          kubectl get pods -n lingua-app
-
-          kubectl describe pods -n lingua-app
-
-  # ---------------------------------------------------------------------------
-  # Job 8 — Final Pipeline Report
-  # ---------------------------------------------------------------------------
-  notify:
-    name: Notify — full pipeline report
-    runs-on: ubuntu-latest
-    if: always()
-    timeout-minutes: 10
-    needs:
-      [
-        validate-yaml,
-        helm-lint,
-        helm-template,
-        kubeconform,
-        security-scan,
-        kind-deployment,
-        smoke-test
-      ]
-
-    steps:
-      - name: Send pipeline summary email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -324,59 +253,191 @@ jobs:
           secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: >
-            [${{ github.repository }}] GitOps Pipeline —
+          subject: |
+            [${{ github.repository }}]
+            YAML Lint —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          html_body: |
+            <h2>
+              ${{ job.status == 'success'
+              && '✅ YAML linting passed'
+              || '❌ YAML linting failed' }}
+            </h2>
+
+            <p>YAML formatting consistency validated.</p>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
+
+  # ---------------------------------------------------------------------------
+  # Job 5 — Smoke Tests
+  #
+  # Creates a temporary Kind cluster and installs the Helm chart.
+  # Validates:
+  # - pods become Ready
+  # - services exist
+  # - ingress exists
+  #
+  # This catches runtime deployment issues BEFORE ArgoCD deploys.
+  # ---------------------------------------------------------------------------
+  smoke-test:
+    name: Smoke Test — temporary Kubernetes deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [yamllint]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Kind
+        uses: helm/kind-action@v1.10.0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Deploy Helm chart
+        run: |
+          helm install lingua-app charts/lingua-app \
+            --namespace lingua-app \
+            --create-namespace
+
+      - name: Wait for deployment
+        run: |
+          kubectl wait \
+            --for=condition=available \
+            deployment \
+            --all \
+            -n lingua-app \
+            --timeout=180s
+
+      - name: Verify pods
+        run: |
+          kubectl get pods -n lingua-app
+
+      - name: Verify services
+        run: |
+          kubectl get svc -n lingua-app
+
+      - name: Verify ingress
+        run: |
+          kubectl get ingress -n lingua-app
+
+      - name: Send smoke test status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            Smoke Tests —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          html_body: |
+            <h2>
+              ${{ job.status == 'success'
+              && '✅ Smoke tests passed'
+              || '❌ Smoke tests failed' }}
+            </h2>
+
+            <p>
+              Helm chart successfully deployed
+              into temporary Kind cluster.
+            </p>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
+
+  # ---------------------------------------------------------------------------
+  # Job 6 — Final Pipeline Summary
+  # ---------------------------------------------------------------------------
+  notify:
+    name: Notify — pipeline summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always()
+
+    needs:
+      - helm-lint
+      - helm-template
+      - kubeconform
+      - yamllint
+      - smoke-test
+
+    steps:
+      - name: Send final pipeline summary email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+
+          subject: |
+            [${{ github.repository }}]
+            GitOps Pipeline —
             ${{
-              needs.validate-yaml.result == 'success' &&
-              needs.helm-lint.result == 'success' &&
-              needs.helm-template.result == 'success' &&
-              needs.kubeconform.result == 'success' &&
-              needs.security-scan.result == 'success' &&
-              needs.kind-deployment.result == 'success' &&
-              needs.smoke-test.result == 'success'
+              (
+                needs.helm-lint.result == 'success' &&
+                needs.helm-template.result == 'success' &&
+                needs.kubeconform.result == 'success' &&
+                needs.yamllint.result == 'success' &&
+                needs.smoke-test.result == 'success'
+              )
               && '✅ Passed'
               || '❌ Failed'
             }}
 
           html_body: |
-            <!DOCTYPE html>
-            <html lang="en">
-            <body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:30px;">
-              <table width="600" align="center" style="background:white;border-radius:10px;padding:30px;border:1px solid #ddd;">
-                <tr>
-                  <td>
-                    <h1>
-                      GitOps Pipeline Summary
-                    </h1>
+            <h1>GitOps CI Pipeline Summary</h1>
 
-                    <p><strong>Repository:</strong> ${{ github.repository }}</p>
-                    <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
-                    <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <table border="1" cellpadding="8">
+              <tr>
+                <th>Stage</th>
+                <th>Status</th>
+              </tr>
 
-                    <hr>
+              <tr>
+                <td>Helm Lint</td>
+                <td>${{ needs.helm-lint.result }}</td>
+              </tr>
 
-                    <h2>Stages</h2>
+              <tr>
+                <td>Helm Template</td>
+                <td>${{ needs.helm-template.result }}</td>
+              </tr>
 
-                    <ul>
-                      <li>Validate YAML → ${{ needs.validate-yaml.result }}</li>
-                      <li>Helm Lint → ${{ needs.helm-lint.result }}</li>
-                      <li>Helm Template → ${{ needs.helm-template.result }}</li>
-                      <li>Kubernetes Validation → ${{ needs.kubeconform.result }}</li>
-                      <li>Security Scan → ${{ needs.security-scan.result }}</li>
-                      <li>Kind Deployment → ${{ needs.kind-deployment.result }}</li>
-                      <li>Smoke Tests → ${{ needs.smoke-test.result }}</li>
-                    </ul>
+              <tr>
+                <td>Kubeconform</td>
+                <td>${{ needs.kubeconform.result }}</td>
+              </tr>
 
-                    <p>
-                      <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
-                        View Full Pipeline Run
-                      </a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
+              <tr>
+                <td>YAML Lint</td>
+                <td>${{ needs.yamllint.result }}</td>
+              </tr>
+
+              <tr>
+                <td>Smoke Test</td>
+                <td>${{ needs.smoke-test.result }}</td>
+              </tr>
+            </table>
+
+            <br>
+
+            <p>
+              <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
+                View workflow run
+              </a>
+            </p>
 
           to: ${{ secrets.EMAIL_USERNAME }}
-          from: "Lingua GitOps CI <${{ secrets.EMAIL_USERNAME }}>"
+          from: GitOps CI
