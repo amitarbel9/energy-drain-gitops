@@ -67,9 +67,7 @@ nginx:
 
   service:
     # nginx.service.type is the Kubernetes Service type for nginx
-    type: NodePort
-    # nginx.service.nodePort is only used when type is NodePort
-    nodePort: 30080
+    type: ClusterIP
 
   healthCheck:
     readiness:
