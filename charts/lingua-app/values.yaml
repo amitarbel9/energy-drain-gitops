@@ -89,7 +89,7 @@ nginx:
 
 # Ingress configuration for optional hostname routing and TLS support
 ingress:
-  enabled: false
+  enabled: true
   className: "nginx"
   annotations: {}
   hosts:
