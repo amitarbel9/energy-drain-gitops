@@ -304,7 +304,6 @@ jobs:
           helm install lingua-app charts/lingua-app \
             --namespace lingua-app \
             --create-namespace
-            - name: Debug Kubernetes resources
       - name: Debug Kubernetes resources
         run: |
           kubectl get all -n lingua-app
@@ -359,7 +358,9 @@ jobs:
             </h2>
 
             <p>
-              Helm chart successfully deployed
+              ${{ job.status == 'success'
+              && 'Helm chart successfully deployed'
+              || 'Failed to deploy Helm chart'}}
               into temporary Kind cluster.
             </p>
 
