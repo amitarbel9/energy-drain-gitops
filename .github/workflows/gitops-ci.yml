@@ -442,4 +442,3 @@ jobs:
 
           to: ${{ secrets.EMAIL_USERNAME }}
           from: GitOps CI
-          
