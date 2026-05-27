@@ -694,7 +694,7 @@ jobs:
                             ${{ (needs.helm-lint.result == 'success' && needs.helm-template.result == 'success' && needs.kubeconform.result == 'success' && needs.yamllint.result == 'success' && needs.smoke-test.result == 'success') && '✅ Pipeline Passed' || '❌ Pipeline Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:13px;color:rgba(255,255,255,0.75);">
-                            Lingua CI Pipeline — Full Summary
+                            GitOps CI Pipeline — Full Summary
                           </p>
                         </td>
                       </tr>
@@ -703,32 +703,32 @@ jobs:
                           <p style="margin:0 0 14px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999;">Stages</p>
                           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eeeeee;border-radius:8px;overflow:hidden;">
                             <tr style="background:#fafafa;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🔍 Build — Ruff Static Analysis</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🔍 Helm Lint — Chart Validation</td>
                               <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.helm-lint.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">
                                 ${{ needs.helm-lint.result == 'success' && '✅ PASSED' || needs.helm-lint.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}
                               </td>
                             </tr>
                             <tr style="background:#ffffff;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🧪 Unit Tests — Pure Function Testing</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🧪 Helm Template — Chart Rendering</td>
                               <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.helm-template.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">
                                 ${{ needs.helm-template.result == 'success' && '✅ PASSED' || needs.helm-template.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}
                               </td>
                             </tr>
                             <tr style="background:#fafafa;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">📦 Package — Docker Image Build</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">📦 Kubeconform — Kubernetes Manifest Validation</td>
                               <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.kubeconform.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">
                                 ${{ needs.kubeconform.result == 'success' && '✅ PASSED' || needs.kubeconform.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}
                               </td>
                             </tr>
                             <tr style="background:#ffffff;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🔗 Integration Tests — Full Stack Testing</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🔗 YamlLint — YAML Syntax Validation</td>
                               <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.yamllint.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">
                                 ${{ needs.yamllint.result == 'success' && '✅ PASSED' || needs.yamllint.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}
                               </td>
                             </tr>
                             <tr style="background:#fafafa;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;">🌐 E2E Tests — Browser User Journeys</td>
-                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.smoke-test.result == 'success' && '#2e7d32' || '#b71c1c' }};">${{ needs.e2e.result == 'success' && '✅ PASSED' || needs.e2e.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;">🌐 Smoke Tests — Application Validation</td>
+                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.smoke-test.result == 'success' && '#2e7d32' || '#b71c1c' }};">${{ needs.smoke-test.result == 'success' && '✅ PASSED' || needs.smoke-test.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
                             </tr>
                           </table>
                         </td>
