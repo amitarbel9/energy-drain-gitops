@@ -32,7 +32,7 @@
 
 name: GitOps CI Pipeline
 
-on:
+'on':
   push:
     branches:
       - main
