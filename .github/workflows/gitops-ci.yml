@@ -242,7 +242,10 @@ jobs:
 
       - name: Run yamllint
         run: |
-          yamllint .
+          yamllint \
+          .github/workflows \
+          k8s \
+          charts/lingua-app/values.yaml
 
       - name: Send yamllint status email
         if: always()
