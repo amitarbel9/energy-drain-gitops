@@ -15,7 +15,7 @@ backend:
   replicas: 1
   image:
     # backend.image.repository is the backend image repository
-    repository: lingua-backend
+    repository: ghcr.io/mild-byte/lingua-backend
     # backend.image.tag is the backend image tag
     tag: "1.0.0"
     # backend.image.pullPolicy controls imagePullPolicy
@@ -56,7 +56,7 @@ nginx:
   replicas: 1
   image:
     # nginx.image.repository is the nginx image repository
-    repository: lingua-nginx
+    repository: ghcr.io/mild-byte/lingua-nginx
     # nginx.image.tag is the nginx image tag
     tag: "1.0.2"
     # nginx.image.pullPolicy controls imagePullPolicy
