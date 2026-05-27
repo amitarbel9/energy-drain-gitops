@@ -306,15 +306,20 @@ jobs:
             --create-namespace
       - name: Debug Kubernetes resources
         run: |
-          kubectl get all -n lingua-app
+           echo "================ PODS ================"
+           kubectl get pods -n lingua-app
 
-          echo "---------------- POD DESCRIPTIONS ----------------"
+           echo "================ DESCRIBE PODS ================"
+           kubectl describe pods -n lingua-app
 
-          kubectl describe pods -n lingua-app
+           echo "================ EVENTS ================"
+           kubectl get events -n lingua-app --sort-by=.metadata.creationTimestamp
 
-          echo "---------------- POD LOGS ----------------"
+           echo "================ BACKEND LOGS ================"
+           kubectl logs deployment/lingua-app-backend -n lingua-app || true
 
-          kubectl logs -n lingua-app --all-containers=true --tail=100 || true
+           echo "================ NGINX LOGS ================"
+           kubectl logs deployment/lingua-app-nginx -n lingua-app || true
       - name: Wait for deployment
         run: |
           kubectl wait \
