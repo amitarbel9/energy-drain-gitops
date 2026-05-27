@@ -1,4 +1,3 @@
----
 # Default values for the lingua-app chart.
 # These defaults are used by `helm install` and can be overridden
 # by `-f` files or `--set` values.
