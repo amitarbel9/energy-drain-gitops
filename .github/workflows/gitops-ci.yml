@@ -304,6 +304,18 @@ jobs:
           helm install lingua-app charts/lingua-app \
             --namespace lingua-app \
             --create-namespace
+            - name: Debug Kubernetes resources
+      - name: Debug Kubernetes resources
+        run: |
+          kubectl get all -n lingua-app
+
+          echo "---------------- POD DESCRIPTIONS ----------------"
+
+          kubectl describe pods -n lingua-app
+
+          echo "---------------- POD LOGS ----------------"
+
+          kubectl logs -n lingua-app --all-containers=true --tail=100 || true
       - name: Wait for deployment
         run: |
           kubectl wait \
