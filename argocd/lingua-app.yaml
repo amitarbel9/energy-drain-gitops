@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/mild-byte/language-learninga-gitops
-    targetRevision: HEAD
+    targetRevision: local
     path: charts/lingua-app
     helm:
       valueFiles:

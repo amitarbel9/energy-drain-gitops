@@ -28,6 +28,10 @@
 # 6. notify
 #    - Full pipeline summary email
 #
+# 7. promote
+#    - Push changes to production branch
+#    - Notify that ArgoCD pulled the repo locally
+#
 # ---------------------------------------------------------------------------
 
 name: GitOps CI Pipeline
@@ -89,7 +93,7 @@ jobs:
             ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
 
           html_body: |
-           <!DOCTYPE html>
+            <!DOCTYPE html>
             <html lang="en">
             <head><meta charset="UTF-8"/></head>
             <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
@@ -514,27 +518,30 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.16.2
+
       - name: Deploy Helm chart
         run: |
           helm install lingua-app charts/lingua-app \
             --namespace lingua-app \
             --create-namespace
+
       - name: Debug Kubernetes resources
         run: |
-           echo "================ PODS ================"
-           kubectl get pods -n lingua-app
+          echo "================ PODS ================"
+          kubectl get pods -n lingua-app
 
-           echo "================ DESCRIBE PODS ================"
-           kubectl describe pods -n lingua-app
+          echo "================ DESCRIBE PODS ================"
+          kubectl describe pods -n lingua-app
 
-           echo "================ EVENTS ================"
-           kubectl get events -n lingua-app --sort-by=.metadata.creationTimestamp
+          echo "================ EVENTS ================"
+          kubectl get events -n lingua-app --sort-by=.metadata.creationTimestamp
 
-           echo "================ BACKEND LOGS ================"
-           kubectl logs deployment/lingua-app-backend -n lingua-app || true
+          echo "================ BACKEND LOGS ================"
+          kubectl logs deployment/lingua-app-backend -n lingua-app || true
 
-           echo "================ NGINX LOGS ================"
-           kubectl logs deployment/lingua-app-nginx -n lingua-app || true
+          echo "================ NGINX LOGS ================"
+          kubectl logs deployment/lingua-app-nginx -n lingua-app || true
+
       - name: Wait for deployment
         run: |
           kubectl wait \
@@ -773,6 +780,121 @@ jobs:
                           <p style="margin:0;font-size:11px;color:#aaa;">
                             Lingua CI · Automated pipeline report · ${{ github.repository }}
                           </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CI
+
+  # ---------------------------------------------------------------------------
+  # Job 7 — Promote to Production + ArgoCD Sync Notification
+  # ---------------------------------------------------------------------------
+  promote:
+    name: Promote — local branch + ArgoCD sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: success()
+
+    needs:
+      - helm-lint
+      - helm-template
+      - kubeconform
+      - yamllint
+      - smoke-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Promote main to production
+        run: |
+          git checkout local
+          git merge origin/main --no-edit
+          git push origin local
+
+      - name: Send ArgoCD sync notification email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ArgoCD —
+            ${{ job.status == 'success' && '✅ Repository Pulled Locally' || '❌ Sync Failed' }}
+
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅ ArgoCD Pulled Repo Locally' || '❌ ArgoCD Sync Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Lingua CI — ArgoCD Sync
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🔄 ArgoCD — ${{ job.status == 'success' && 'Repository pulled and applied to local cluster' || 'Sync encountered issues' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Branch</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.ref_name }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Triggered by</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.actor }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
                         </td>
                       </tr>
                     </table>
