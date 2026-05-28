@@ -818,10 +818,14 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-
+      - name: Fetch all branches
+        run: |
+          git fetch origin
+      - name: Checkout local branch
+        run: |
+          git checkout -B local origin/local
       - name: Promote main to local
         run: |
-          git checkout local
           git merge origin/main --no-edit
           git push origin local
 
