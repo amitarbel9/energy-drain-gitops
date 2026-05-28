@@ -98,3 +98,13 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+kube-prometheus-stack:
+grafana:
+  admin:
+      existingSecret: grafana-admin-secret
+      userKey: admin-user
+      passwordKey: admin-password
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+
