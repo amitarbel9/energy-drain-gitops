@@ -118,7 +118,7 @@ Local startup steps:
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/mild-byte/language-learninga-gitops.git   
+    git clone https://github.com/mild-byte/language-learninga-gitops.git
     cd language-learning-gitops
     ```
 
@@ -170,7 +170,3 @@ A recommended future structure could be:
 - `charts/`
 - `environments/`
 - `k8s/`
-
-Once Argo CD and Helm are fully enabled, update this README with installation, sync, and AWS deployment instructions.
-# test
-# testa
