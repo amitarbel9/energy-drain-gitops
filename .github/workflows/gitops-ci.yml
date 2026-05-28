@@ -549,12 +549,19 @@ jobs:
           echo "================ NGINX LOGS ================"
           kubectl logs deployment/lingua-app-nginx -n lingua-app || true
 
-      - name: Wait for deployment
+      - name: Wait for backend deployment
         run: |
           kubectl wait \
             --for=condition=available \
-            deployment \
-            --all \
+            deployment/lingua-app-backend \
+            -n lingua-app \
+            --timeout=180s
+
+      - name: Wait for nginx deployment
+        run: |
+          kubectl wait \
+            --for=condition=available \
+            deployment/lingua-app-nginx \
             -n lingua-app \
             --timeout=180s
 
