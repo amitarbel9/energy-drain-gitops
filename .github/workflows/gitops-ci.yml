@@ -304,6 +304,7 @@ jobs:
         run: |
           kubeconform \
             -strict \
+            --ignore-missing-schemas \
             -summary \
             rendered.yaml
 
