@@ -99,6 +99,8 @@ ingress:
           pathType: Prefix
   tls: []
 kube-prometheus-stack:
+  crds:
+    enabled: true
   grafana:
     admin:
       existingSecret: grafana-admin-secret
