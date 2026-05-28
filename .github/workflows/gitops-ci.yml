@@ -73,7 +73,9 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.16.2
-
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build charts/lingua-app
       - name: Run Helm lint
         run: |
           helm lint charts/lingua-app
@@ -177,7 +179,9 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.16.2
-
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build charts/lingua-app
       - name: Render manifests
         run: |
           helm template lingua-app charts/lingua-app \
@@ -518,7 +522,9 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.16.2
-
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build charts/lingua-app
       - name: Deploy Helm chart
         run: |
           helm install lingua-app charts/lingua-app \
