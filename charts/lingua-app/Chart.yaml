@@ -13,9 +13,3 @@ keywords:
 home: https://github.com/mild-byte/language-learning-gitops
 sources:
   - https://github.com/mild-byte/language-learning-gitops
-dependencies:
-  - name: kube-prometheus-stack
-    version: "69.8.2"
-    repository: "https://prometheus-community.github.io/helm-charts"
-
-
