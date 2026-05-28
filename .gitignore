@@ -35,5 +35,3 @@ secrets/
 *.pem
 *.key
 *.crt
-# Ignore Prometheus and Grafana secrets
-charts/lingua-app/values-secret.yaml
