@@ -16,7 +16,7 @@ backend:
     # backend.image.repository is the backend image repository
     repository: ghcr.io/mild-byte/lingua-backend
     # backend.image.tag is the backend image tag
-    tag: "516e628"
+    tag: "8f722e8"
     # backend.image.pullPolicy controls imagePullPolicy
     pullPolicy: IfNotPresent
   # backend.port is the port the backend listens on
@@ -51,7 +51,7 @@ nginx:
     # nginx.image.repository is the nginx image repository
     repository: ghcr.io/mild-byte/lingua-nginx
     # nginx.image.tag is the nginx image tag
-    tag: "516e628"
+    tag: "8f722e8"
     # nginx.image.pullPolicy controls imagePullPolicy
     pullPolicy: IfNotPresent
   # nginx.port is the HTTP port exposed by nginx
