@@ -86,3 +86,12 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+  #Adding Monitoring configuration for the backend Deployment
+  monitoring:
+   enabled: true
+
+   interval: 30s
+   path: /metrics
+
+   serviceMonitor:
+     enabled: true
