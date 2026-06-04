@@ -59,3 +59,6 @@ ingress:
     - secretName: lingua-prod-tls
       hosts:
         - lingua-app.example.com
+monitoring:
+  serviceMonitor:
+    enabled: true
