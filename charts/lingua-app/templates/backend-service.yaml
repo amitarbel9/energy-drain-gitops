@@ -12,7 +12,8 @@ spec:
 {{ include "lingua-app.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: backend
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: {{ .Values.backend.port }}
       targetPort: {{ .Values.backend.port }}
   type: ClusterIP
