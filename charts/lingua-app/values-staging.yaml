@@ -59,3 +59,6 @@ ingress:
     - secretName: lingua-staging-tls
       hosts:
         - lingua-staging.example.com
+  monitoring:
+    serviceMonitor:
+      enabled: true
