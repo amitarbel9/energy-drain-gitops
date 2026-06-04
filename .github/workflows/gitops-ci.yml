@@ -525,7 +525,7 @@ jobs:
           helm install lingua-app charts/lingua-app \
             --namespace lingua-app \
             --create-namespace \
-            --set monitoring.serviceMonitor.enabled=false
+            --set monitoring.enabled=false
 
       - name: Debug Kubernetes resources
         run: |
