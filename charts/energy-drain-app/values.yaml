@@ -1,0 +1,95 @@
+# Default values for the lingua-app chart.
+# These defaults are used by `helm install` and can be overridden
+# by `-f` files or `--set` values.
+
+namespace:
+  # namespace.name is the Kubernetes namespace for all chart resources
+  name: lingua-app
+  # namespace.create controls whether Helm creates this namespace
+  create: true
+backend:
+  # backend.name is the base name for backend Deployment and Service
+  name: backend
+  # backend.replicas is the desired replica count for the backend pods
+  replicas: 1
+  image:
+    # backend.image.repository is the backend image repository
+    repository: ghcr.io/mild-byte/lingua-backend
+    # backend.image.tag is the backend image tag
+    tag: "8f722e8"
+    # backend.image.pullPolicy controls imagePullPolicy
+    pullPolicy: IfNotPresent
+  # backend.port is the port the backend listens on
+  port: 5000
+  # backend.database.mongoUrl is the database connection string
+  database:
+    mongoUrl: "mongodb://mongodb:27017"
+  healthCheck:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+    liveness:
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  # backend.env is an optional list of extra environment variables
+  env: []
+nginx:
+  # nginx.name is the base name for nginx Deployment and Service
+  name: nginx
+  # nginx.replicas is the desired replica count for nginx pods
+  replicas: 1
+  image:
+    # nginx.image.repository is the nginx image repository
+    repository: ghcr.io/mild-byte/lingua-nginx
+    # nginx.image.tag is the nginx image tag
+    tag: "8f722e8"
+    # nginx.image.pullPolicy controls imagePullPolicy
+    pullPolicy: IfNotPresent
+  # nginx.port is the HTTP port exposed by nginx
+  port: 80
+  service:
+    # nginx.service.type is the Kubernetes Service type for nginx
+    type: ClusterIP
+  healthCheck:
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+    liveness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+# Ingress configuration for optional hostname routing and TLS support
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: lingua-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+monitoring:
+  enabled: true
+  interval: 30s
+  path: /metrics
+  serviceMonitor:
+    enabled: true

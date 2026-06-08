@@ -76,7 +76,7 @@ jobs:
 
       - name: Run Helm lint
         run: |
-          helm lint charts/lingua-app
+          helm lint charts/energy-drain-app
 
       - name: Send helm lint status email
         if: always()
@@ -180,8 +180,8 @@ jobs:
 
       - name: Render manifests
         run: |
-          helm template lingua-app charts/lingua-app \
-            --namespace lingua-app \
+          helm template energy-drain-app charts/energy-drain-app \
+            --namespace energy-drain-app \
             > rendered.yaml
 
       - name: Upload rendered manifests
@@ -407,7 +407,7 @@ jobs:
         run: |
           yamllint \
           .github/workflows \
-          charts/lingua-app/values.yaml
+          charts/energy-drain-app/values.yaml
 
       - name: Send yamllint status email
         if: always()
@@ -522,27 +522,27 @@ jobs:
 
       - name: Deploy Helm chart
         run: |
-          helm install lingua-app charts/lingua-app \
-            --namespace lingua-app \
+          helm install energy-drain-app charts/energy-drain-app \
+            --namespace energy-drain-app \
             --create-namespace \
             --set monitoring.enabled=false
 
       - name: Debug Kubernetes resources
         run: |
           echo "================ PODS ================"
-          kubectl get pods -n lingua-app
+          kubectl get pods -n energy-drain-app
 
           echo "================ DESCRIBE PODS ================"
-          kubectl describe pods -n lingua-app
+          kubectl describe pods -n energy-drain-app
 
           echo "================ EVENTS ================"
-          kubectl get events -n lingua-app --sort-by=.metadata.creationTimestamp
+          kubectl get events -n energy-drain-app --sort-by=.metadata.creationTimestamp
 
           echo "================ BACKEND LOGS ================"
-          kubectl logs deployment/lingua-app-backend -n lingua-app || true
+          kubectl logs deployment/energy-drain-app-backend -n energy-drain-app || true
 
           echo "================ NGINX LOGS ================"
-          kubectl logs deployment/lingua-app-nginx -n lingua-app || true
+          kubectl logs deployment/energy-drain-app-nginx -n energy-drain-app || true
 
       - name: Wait for deployment
         run: |
@@ -550,20 +550,20 @@ jobs:
             --for=condition=available \
             deployment \
             --all \
-            -n lingua-app \
+            -n energy-drain-app \
             --timeout=180s
 
       - name: Verify pods
         run: |
-          kubectl get pods -n lingua-app
+          kubectl get pods -n energy-drain-app
 
       - name: Verify services
         run: |
-          kubectl get svc -n lingua-app
+          kubectl get svc -n energy-drain-app
 
       - name: Verify ingress
         run: |
-          kubectl get ingress -n lingua-app
+          kubectl get ingress -n energy-drain-app
 
       - name: Send smoke test status email
         if: always()
