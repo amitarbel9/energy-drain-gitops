@@ -1,0 +1,48 @@
+# Nginx Deployment used as the frontend or reverse proxy.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lingua-app.fullname" . }}-nginx
+  namespace: {{ .Values.namespace.name }}
+  labels:
+{{ include "lingua-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+spec:
+  replicas: {{ .Values.nginx.replicas }}
+  selector:
+    matchLabels:
+{{ include "lingua-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nginx
+  template:
+    metadata:
+      labels:
+{{ include "lingua-app.labels" . | nindent 8 }}
+        app.kubernetes.io/component: nginx
+    spec:
+      containers:
+        - name: {{ .Values.nginx.name }}
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.nginx.port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.nginx.port }}
+            initialDelaySeconds: {{ .Values.nginx.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.healthCheck.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.healthCheck.readiness.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.nginx.port }}
+            initialDelaySeconds: {{ .Values.nginx.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.healthCheck.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.healthCheck.liveness.timeoutSeconds }}
+          resources:
+            requests:
+              memory: "{{ .Values.nginx.resources.requests.memory }}"
+              cpu: "{{ .Values.nginx.resources.requests.cpu }}"
+            limits:
+              memory: "{{ .Values.nginx.resources.limits.memory }}"
+              cpu: "{{ .Values.nginx.resources.limits.cpu }}"
