@@ -1,57 +1,60 @@
-# Language Learning GitOps
+# Energy Drain GitOps
 
-This repository contains a GitOps-oriented Kubernetes deployment for a language learning application.
+This repository contains a GitOps-oriented Kubernetes deployment for the Energy Drain application — an app that logs the things in life that drain your energy.
 
-It includes both the traditional `k8s/` manifests and the beginnings of a Helm/Argo CD-based delivery model in `charts/` and `argocd/`.
+It uses a Helm chart for packaging, Argo CD for automated GitOps delivery, and a CI pipeline for validation before every deployment.
 
 ## Repository Structure
 
-- `k8s/`
-  - `namespace.yaml` - Namespace definition for `lingua-app`
-  - `backend-deployment.yaml` - Backend app deployment manifest
-  - `backend-service.yaml` - Backend service manifest
-  - `nginx-deployment.yaml` - Frontend proxy deployment manifest
-  - `nginx-service.yaml` - Frontend service manifest
-- `charts/` - Helm chart for the application
+- `charts/energy-drain-app/` - Helm chart for the application
 - `argocd/` - Argo CD application manifest for GitOps delivery
+- `monitoring/` - Grafana dashboard definition
 
-## Current Deployment
+## What the App Does
 
-The current manifests deploy the following components into the `lingua-app` namespace:
+Energy Drain is an application that lets users log and track the things that take energy from them. It exposes metrics such as the number of entries created, which are visualised in Grafana.
+
+## Components Deployed
+
+The chart deploys the following into the `energy-drain-app` namespace:
 
 - `backend`
-  - `Deployment` using image `lingua-backend:x.y.z`
+  - Flask application that handles logging entries
   - `ClusterIP` service on port `5000`
-  - Health probes and resource requests/limits configured
+  - Health probes and resource limits configured
 
 - `nginx`
-  - `Deployment` using image `lingua-nginx:x.y.z`
-  - `Ingress` service on port `80`
-  - Health probes and resource requests/limits configured
+  - Frontend proxy
+  - `Ingress` on port `80`
+  - Health probes and resource limits configured
 
-## AWS Deployment Roadmap
+## Monitoring
 
-This repository is planned to support AWS deployment with ingress rather than `NodePort`.
-The future AWS setup will use:
+Prometheus and Grafana are installed separately via `kube-prometheus-stack` into the `monitoring` namespace. The Helm chart automatically provisions a Grafana dashboard on every deployment via a labelled ConfigMap that the Grafana sidecar picks up.
 
-- AWS Load Balancer or ALB/Ingress Controller
-- Kubernetes `Ingress` resources instead of `NodePort`
-- Environment-specific Helm values for staging and production
-- Argo CD to sync Git changes into the cluster automatically
+Metrics tracked:
+
+- Pod CPU and memory usage
+- Number of healthy and total Prometheus targets
+- Number of pods running
+- Number of HTTP requests
+- Number of energy-drain entries created
+
+## CI Pipeline
+
+Every push to `main` runs the following jobs in order:
+
+1. **helm-lint** — validates chart syntax and structure
+2. **helm-template** — renders manifests and checks for template errors
+3. **kubeconform** — validates rendered manifests against Kubernetes schemas
+4. **yamllint** — checks YAML formatting consistency
+5. **smoke-test** — installs the chart into a temporary Kind cluster and verifies pods, services, and ingress become healthy
+6. **notify** — sends a pipeline summary email
+7. **promote** — pushes changes to the production branch for Argo CD to pick up
 
 ## GitOps Workflow
 
-GitOps makes this application easier to manage by treating Git as the single source of truth.
-All Kubernetes configuration and deployment changes are captured in version control, reviewed in pull requests, and automatically reconciled by Argo CD.
-
-### Why GitOps for this application
-
-- Consistency: deployments are reproducible from Git history
-- Auditability: every change is traceable to commits and PRs
-- Safety: drift is detected and corrected automatically
-- Speed: automated sync removes manual `kubectl apply` steps
-
-### Simple workflow blueprint
+Git is the single source of truth. All changes go through the CI pipeline before Argo CD reconciles them into the cluster.
 
 ```text
 Developer
@@ -60,7 +63,10 @@ Developer
 Git repository (source of truth)
    │
    ▼
-Argo CD / GitOps operator
+CI Pipeline (lint → template → validate → smoke test)
+   │
+   ▼
+Argo CD
    │
    ▼
 Kubernetes cluster
@@ -68,105 +74,56 @@ Kubernetes cluster
    └─▶ drift detection + reconciliation
 ```
 
-1. Change application configuration or manifest source in Git (`k8s/`, `charts/`, or `argocd/`)
-2. Commit and push the change to the repository
-3. Argo CD detects the new commit and compares it to the live cluster state
-4. Argo CD syncs the cluster to match the declared state
-5. The cluster converges to the desired state and drift is corrected continuously
-
-## Future Enhancements
-
-This repo is already moving toward a Helm + Argo CD delivery model:
-
-- `Argo CD` integration
-  - Declarative application sync
-  - Automated GitOps delivery
-  - Application manifest definitions under `argocd/`
-
-- `Helm` chart support
-  - Parameterized chart packaging for backend and frontend components
-  - Values files for environment-specific configuration
-  - Reusable templated Kubernetes resources
+1. Push a change to `main`
+2. CI pipeline validates the change
+3. On success, the change is promoted to the production branch
+4. Argo CD detects the new commit and syncs the cluster
 
 ## Getting Started
 
-To deploy the current manifests manually:
-
-```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/backend-deployment.yaml
-kubectl apply -f k8s/backend-service.yaml
-kubectl apply -f k8s/nginx-deployment.yaml
-kubectl apply -f k8s/nginx-service.yaml
-```
-
-> Note: The current container images are configured with `imagePullPolicy: Never`, which is useful for local development with locally built images.
-
-## Run Locally from Scratch
-
-A new contributor can run this application locally by following these steps:
-
 Prerequisites:
 
-- `kubectl` installed and configured for a local cluster (Minikube, Kind, Docker Desktop, etc.)
-- Docker available to build or run container images
-- A running MongoDB instance reachable by the backend
-- A Kubernetes cluster with namespace access
+- `kubectl` configured for a local cluster (Kind, Minikube, Docker Desktop, etc.)
+- `helm` v3 installed
+- Argo CD installed in the cluster (optional for local dev)
 
-Local startup steps:
+Deploy manually:
 
-1. Clone the repository:
+```bash
+helm install energy-drain-app charts/energy-drain-app \
+  --namespace energy-drain-app \
+  --create-namespace
+```
 
-    ```bash
-    git clone https://github.com/mild-byte/language-learninga-gitops.git
-    cd language-learning-gitops
-    ```
+Install Prometheus and Grafana:
 
-2. Build or provide the application images locally if needed:
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
 
-    ```bash
-    # Example if images are built locally
-    docker build -t lingua-backend:x.y.z ./path/to/backend
-    docker build -t lingua-nginx:x.y.z ./path/to/nginx
-    ```
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set alertmanager.enabled=false \
+  --set grafana.adminPassword=admin \
+  --set grafana.service.type=NodePort \
+  --set grafana.service.nodePort=30300
+```
 
-3. Ensure MongoDB is available to the backend. For example, run MongoDB locally or in the cluster and update the backend connection string if needed.
+Access Grafana:
 
-4. Apply the current Kubernetes manifests:
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+# Open http://localhost:3000 — username: admin, password: admin
+```
 
-    ```bash
-    kubectl apply -f k8s/namespace.yaml
-    kubectl apply -f k8s/backend-deployment.yaml
-    kubectl apply -f k8s/backend-service.yaml
-    kubectl apply -f k8s/nginx-deployment.yaml
-    kubectl apply -f k8s/nginx-service.yaml
-    ```
+Confirm the app is running:
 
-5. Confirm the services are running:
-
-    ```bash
-    kubectl get all -n lingua-app
-    kubectl get svc -n lingua-app
-    ```
-
-6. Access the frontend:
-
-    - If using `NodePort`, open `http://<node-ip>:30080`
-    - If your local cluster supports `host.docker.internal`, use that host and port `30080`
-    - Alternatively, use `kubectl port-forward svc/nginx 8080:80 -n lingua-app` and open `http://localhost:8080`
-
-## Notes
-
-- The backend currently expects MongoDB at `mongodb://host.docker.internal:27017`.
-- The frontend `nginx` service is currently exposed via `NodePort` on `30080`.
-- AWS deployment will eventually replace `NodePort` with `Ingress` and load balancers.
+```bash
+kubectl get all -n energy-drain-app
+```
 
 ## Contribution
 
-Contributions are welcome for Argo CD application manifests, Helm charts, or AWS ingress support.
-A recommended future structure could be:
-
-- `argocd/`
-- `charts/`
-- `environments/`
-- `k8s/`
+Contributions are welcome for Argo CD application manifests, Helm chart improvements, or monitoring enhancements.

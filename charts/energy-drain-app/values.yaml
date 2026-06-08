@@ -4,7 +4,7 @@
 
 namespace:
   # namespace.name is the Kubernetes namespace for all chart resources
-  name: lingua-app
+  name: energy-drain
   # namespace.create controls whether Helm creates this namespace
   create: true
 backend:
