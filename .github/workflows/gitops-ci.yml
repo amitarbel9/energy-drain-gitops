@@ -46,7 +46,6 @@ name: GitOps CI Pipeline
 # ---------------------------------------------------------------------------
 permissions:
   contents: read
-  packages: read
 
 # ---------------------------------------------------------------------------
 # Concurrency control
@@ -521,22 +520,12 @@ jobs:
         with:
           version: v3.16.2
 
-      - name: Create namespace and GHCR pull secret
-        run: |
-          kubectl create namespace energy-drain
-          kubectl create secret docker-registry ghcr-pull-secret \
-            --namespace energy-drain \
-            --docker-server=ghcr.io \
-            --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GITHUB_TOKEN }}
-
       - name: Deploy Helm chart
         run: |
           helm install energy-drain-app charts/energy-drain-app \
             --namespace energy-drain \
-            --set monitoring.enabled=false \
-            --set backend.imagePullSecrets[0].name=ghcr-pull-secret \
-            --set nginx.imagePullSecrets[0].name=ghcr-pull-secret
+            --create-namespace \
+            --set monitoring.enabled=false
 
       - name: Debug Kubernetes resources
         run: |
