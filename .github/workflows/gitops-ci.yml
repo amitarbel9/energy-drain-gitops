@@ -76,7 +76,7 @@ jobs:
 
       - name: Run Helm lint
         run: |
-          helm lint charts/energy-drain
+          helm lint charts/energy-drain-app
 
       - name: Send helm lint status email
         if: always()
@@ -180,7 +180,7 @@ jobs:
 
       - name: Render manifests
         run: |
-          helm template energy-drain charts/energy-drain \
+          helm template energy-drain charts/energy-drain-app \
             --namespace energy-drain \
             > rendered.yaml
 
@@ -407,7 +407,7 @@ jobs:
         run: |
           yamllint \
           .github/workflows \
-          charts/energy-drain/values.yaml
+          charts/energy-drain-app/values.yaml
 
       - name: Send yamllint status email
         if: always()
@@ -522,7 +522,7 @@ jobs:
 
       - name: Deploy Helm chart
         run: |
-          helm install energy-drain charts/energy-drain \
+          helm install energy-drain charts/energy-drain-app \
             --namespace energy-drain \
             --create-namespace \
             --set monitoring.enabled=false
