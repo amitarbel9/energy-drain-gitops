@@ -17,7 +17,7 @@ backend:
     # backend.image.repository is the backend image repository
     repository: ghcr.io/mild-byte/energy-backend
     # backend.image.tag is the backend image tag
-    tag: "5985aa0"
+    tag: "8180fd2"
     # backend.image.pullPolicy controls imagePullPolicy
     pullPolicy: IfNotPresent
   # backend.port is the port the backend listens on
@@ -53,7 +53,7 @@ nginx:
     # nginx.image.repository is the nginx image repository
     repository: ghcr.io/mild-byte/energy-drain-nginx
     # nginx.image.tag is the nginx image tag
-    tag: "5985aa0"
+    tag: "8180fd2"
     # nginx.image.pullPolicy controls imagePullPolicy
     pullPolicy: IfNotPresent
   # nginx.port is the HTTP port exposed by nginx
