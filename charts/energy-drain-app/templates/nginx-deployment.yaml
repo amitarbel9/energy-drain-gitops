@@ -19,6 +19,10 @@ spec:
 {{ include "energy-drain.labels" . | nindent 8 }}
         app.kubernetes.io/component: nginx
     spec:
+      {{- with .Values.nginx.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Values.nginx.name }}
           image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"

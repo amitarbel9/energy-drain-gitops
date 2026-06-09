@@ -107,7 +107,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ Helm Lint Passed' || '❌ Helm Lint Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — Helm Lint
+                            Energy Drain CI — Helm Lint
                           </p>
                         </td>
                       </tr>
@@ -219,7 +219,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ Helm Template Passed' || '❌ Helm Template Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — Helm Template
+                            Energy Drain CI — Helm Template
                           </p>
                         </td>
                       </tr>
@@ -333,7 +333,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ Validate Manifests Passed' || '❌ Validate Manifests Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — Validate Manifests
+                            Energy Drain CI — Validate Manifests
                           </p>
                         </td>
                       </tr>
@@ -438,7 +438,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ Yamllint Passed' || '❌ Yamllint Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — Yamllint
+                            Energy Drain CI — Yamllint
                           </p>
                         </td>
                       </tr>
@@ -520,12 +520,22 @@ jobs:
         with:
           version: v3.16.2
 
+      - name: Create namespace and GHCR pull secret
+        run: |
+          kubectl create namespace energy-drain
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace energy-drain \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }}
+
       - name: Deploy Helm chart
         run: |
           helm install energy-drain-app charts/energy-drain-app \
             --namespace energy-drain \
-            --create-namespace \
-            --set monitoring.enabled=false
+            --set monitoring.enabled=false \
+            --set backend.imagePullSecrets[0].name=ghcr-pull-secret \
+            --set nginx.imagePullSecrets[0].name=ghcr-pull-secret
 
       - name: Debug Kubernetes resources
         run: |
@@ -594,7 +604,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ Smoke Tests Passed' || '❌ Smoke Tests Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — Smoke Tests
+                            Energy Drain CI — Smoke Tests
                           </p>
                         </td>
                       </tr>
@@ -780,7 +790,7 @@ jobs:
                       <tr>
                         <td style="padding:16px 36px;background:#fafafa;">
                           <p style="margin:0;font-size:11px;color:#aaa;">
-                            Lingua CI · Automated pipeline report · ${{ github.repository }}
+                            Energy Drain CI · Automated pipeline report · ${{ github.repository }}
                           </p>
                         </td>
                       </tr>
@@ -861,7 +871,7 @@ jobs:
                             ${{ job.status == 'success' && '✅ ArgoCD Pulled Repo Locally' || '❌ ArgoCD Sync Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Lingua CI — ArgoCD Sync
+                            Energy Drain CI — ArgoCD Sync
                           </p>
                         </td>
                       </tr>

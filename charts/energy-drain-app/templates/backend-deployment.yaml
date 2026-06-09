@@ -19,6 +19,10 @@ spec:
 {{ include "energy-drain.labels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
+      {{- with .Values.backend.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Values.backend.name }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
