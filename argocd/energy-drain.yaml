@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/mild-byte/language-learninga-gitops
+    repoURL: https://github.com/mild-byte/energy-drain-gitops
     targetRevision: local
     path: charts/energy-drain-app
     helm:
