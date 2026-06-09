@@ -7,6 +7,6 @@ metadata:
   labels:
     grafana_dashboard: "1"
 data:
-  dashboard-lingua-app.json: |-
+  dashboard-energy-drain.json: |-
 {{ .Files.Get "dashboards/dashboard-lingua-app.json" | indent 4 }}
 {{- end }}

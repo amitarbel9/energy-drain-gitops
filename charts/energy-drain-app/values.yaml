@@ -1,4 +1,4 @@
-# Default values for the lingua-app chart.
+# Default values for the energy-drain-app chart.
 # These defaults are used by `helm install` and can be overridden
 # by `-f` files or `--set` values.
 
@@ -81,7 +81,7 @@ ingress:
   className: "nginx"
   annotations: {}
   hosts:
-    - host: lingua-app.local
+    - host: energy-drain.local
       paths:
         - path: /
           pathType: Prefix

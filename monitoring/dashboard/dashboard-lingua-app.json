@@ -237,7 +237,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (container) (\n  container_memory_usage_bytes{\n    namespace=\"lingua-app\",\n    container!=\"\",\n    container!=\"POD\"\n  }\n)",
+                        "expr": "sum by (container) (\n  container_memory_usage_bytes{\n    namespace=\"energy-drain\",\n    container!=\"\",\n    container!=\"POD\"\n  }\n)",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -333,7 +333,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (container) (\n  rate(\n    container_cpu_usage_seconds_total{\n      namespace=\"lingua-app\",\n      container!=\"\",\n      container!=\"POD\"\n    }[5m]\n  )\n)",
+                        "expr": "sum by (container) (\n  rate(\n    container_cpu_usage_seconds_total{\n      namespace=\"energy-drain\",\n      container!=\"\",\n      container!=\"POD\"\n    }[5m]\n  )\n)",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -424,7 +424,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "count(kube_pod_info{namespace=\"lingua-app\"})",
+                        "expr": "count(kube_pod_info{namespace=\"energy-drain\"})",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -508,7 +508,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(\n  kube_pod_status_ready{\n    namespace=\"lingua-app\",\n    condition=\"true\"\n  }\n)",
+                        "expr": "sum(\n  kube_pod_status_ready{\n    namespace=\"energy-drain\",\n    condition=\"true\"\n  }\n)",
                         "legendFormat": "__auto",
                         "range": true
                       }

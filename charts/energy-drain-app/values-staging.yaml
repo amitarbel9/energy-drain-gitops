@@ -2,7 +2,7 @@
 # This file is applied after values.yaml when using `helm install -f`.
 
 namespace:
-  name: lingua-app-staging
+  name: energy-drain-staging
 
 backend:
   replicas: 1
@@ -51,14 +51,14 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-staging"
   hosts:
-    - host: lingua-staging.example.com
+    - host: energy-drain-staging.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: lingua-staging-tls
+    - secretName: energy-drain-staging-tls
       hosts:
-        - lingua-staging.example.com
+        - energy-drain-staging.example.com
   monitoring:
     serviceMonitor:
       enabled: true
