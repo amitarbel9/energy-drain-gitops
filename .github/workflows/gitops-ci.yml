@@ -802,6 +802,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: success()
+    permissions:
+      contents: write
 
     needs:
       - helm-lint
@@ -824,13 +826,10 @@ jobs:
       - name: Fetch all branches
         run: |
           git fetch origin
-      - name: Checkout local branch
-        run: |
-          git checkout -B local origin/local
       - name: Promote main to local
         run: |
-          git merge origin/main --no-edit
-          git push origin local
+          git checkout -B local origin/main
+          git push origin local --force
 
       - name: Send ArgoCD sync notification email
         if: always()
