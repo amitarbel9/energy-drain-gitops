@@ -5,11 +5,11 @@ metadata:
   name: backend-service
   namespace: {{ .Values.namespace.name }}
   labels:
-{{ include "lingua-app.labels" . | nindent 4 }}
+{{ include "energy-drain.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 spec:
   selector:
-{{ include "lingua-app.selectorLabels" . | nindent 4 }}
+{{ include "energy-drain.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: backend
   ports:
     - name: http

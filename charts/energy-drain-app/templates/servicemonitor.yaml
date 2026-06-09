@@ -12,7 +12,7 @@ spec:
     matchLabels:
       app.kubernetes.io/component: backend
       app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/name: lingua-app
+      app.kubernetes.io/name: energy-drain-app
 
   namespaceSelector:
     matchNames:

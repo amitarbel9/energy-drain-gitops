@@ -3,10 +3,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "lingua-app.fullname" . }}-ingress
+  name: {{ include "energy-drain.fullname" . }}-ingress
   namespace: {{ .Values.namespace.name }}
   labels:
-{{ include "lingua-app.labels" . | nindent 4 }}
+{{ include "energy-drain.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -29,7 +29,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "lingua-app.fullname" $ }}-nginx-service
+                name: {{ include "energy-drain.fullname" $ }}-nginx-service
                 port:
                   number: {{ $.Values.nginx.port }}
           {{- end }}

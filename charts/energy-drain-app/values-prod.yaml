@@ -2,7 +2,7 @@
 # This file is applied after values.yaml during `helm install -f`.
 
 namespace:
-  name: lingua-app-prod
+  name: energy-drain-prod
 
 backend:
   replicas: 3
@@ -51,14 +51,14 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
-    - host: lingua-app.example.com
+    - host: energy-drain.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: lingua-prod-tls
+    - secretName: energy-drain-prod-tls
       hosts:
-        - lingua-app.example.com
+        - energy-drain.example.com
 monitoring:
   serviceMonitor:
     enabled: true

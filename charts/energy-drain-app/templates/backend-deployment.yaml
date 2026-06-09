@@ -2,21 +2,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lingua-app.fullname" . }}-backend
+  name: {{ include "energy-drain.fullname" . }}-backend
   namespace: {{ .Values.namespace.name }}
   labels:
-{{ include "lingua-app.labels" . | nindent 4 }}
+{{ include "energy-drain.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
     matchLabels:
-{{ include "lingua-app.selectorLabels" . | nindent 6 }}
+{{ include "energy-drain.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: backend
   template:
     metadata:
       labels:
-{{ include "lingua-app.labels" . | nindent 8 }}
+{{ include "energy-drain.labels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
       containers:
