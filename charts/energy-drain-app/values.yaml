@@ -8,6 +8,7 @@ namespace:
   # namespace.create controls whether Helm creates this namespace
   create: true
 backend:
+  imagePullSecrets: []
   # backend.name is the base name for backend Deployment and Service
   name: backend
   # backend.replicas is the desired replica count for the backend pods
@@ -43,6 +44,7 @@ backend:
   # backend.env is an optional list of extra environment variables
   env: []
 nginx:
+  imagePullSecrets: []
   # nginx.name is the base name for nginx Deployment and Service
   name: nginx
   # nginx.replicas is the desired replica count for nginx pods
