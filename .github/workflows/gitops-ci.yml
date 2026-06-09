@@ -180,7 +180,7 @@ jobs:
 
       - name: Render manifests
         run: |
-          helm template energy-drain charts/energy-drain-app \
+          helm template energy-drain-app charts/energy-drain-app \
             --namespace energy-drain \
             > rendered.yaml
 
@@ -522,7 +522,7 @@ jobs:
 
       - name: Deploy Helm chart
         run: |
-          helm install energy-drain charts/energy-drain-app \
+          helm install energy-drain-app charts/energy-drain-app \
             --namespace energy-drain \
             --create-namespace \
             --set monitoring.enabled=false
@@ -539,10 +539,10 @@ jobs:
           kubectl get events -n energy-drain --sort-by=.metadata.creationTimestamp
 
           echo "================ BACKEND LOGS ================"
-          kubectl logs deployment/energy-drain-backend -n energy-drain || true
+          kubectl logs deployment/energy-drain-app-backend -n energy-drain || true
 
           echo "================ NGINX LOGS ================"
-          kubectl logs deployment/energy-drain-nginx -n energy-drain || true
+          kubectl logs deployment/energy-drain-app-nginx -n energy-drain || true
 
       - name: Wait for deployment
         run: |
