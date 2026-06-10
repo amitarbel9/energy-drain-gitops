@@ -43,6 +43,11 @@ backend:
       value: "staging"
     - name: LOG_LEVEL
       value: "info"
+    # Google OAuth client ID (public identifier, not a secret) used by the
+    # frontend Sign-In button via /api/auth/config and for ID token audience
+    # verification in POST /api/auth/google.
+    - name: GOOGLE_CLIENT_ID
+      value: "373082865022-7j13og8l3jvkgvp1cii0cr9iqgerb98u.apps.googleusercontent.com"
 nginx:
   replicas: 1
   image:
