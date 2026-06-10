@@ -8,9 +8,20 @@ backend:
   image:
     repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-backend
     tag: "3397892"
-  # In staging, connect to a managed MongoDB or AWS-backed database
+  # MONGO_URL is fetched from AWS Secrets Manager via the Secrets Store CSI
+  # driver (see secretsStore below) - this value is unused when enabled.
   database:
-    mongoUrl: "mongodb://mongodb-staging.c123abc456.mongodb.net:27017"
+    mongoUrl: ""
+  serviceAccount:
+    create: true
+    name: energy-drain-backend
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::523555653711:role/energy-drain-staging-secrets-csi"
+  secretsStore:
+    enabled: true
+    secretProviderClassName: energy-drain-staging-backend-secrets
+    awsSecretName: "staging/energy-drain/mongo-url"
+    k8sSecretName: energy-drain-backend-db-secret
   resources:
     requests:
       memory: "256Mi"
@@ -20,7 +31,7 @@ backend:
       cpu: "500m"
   env:
     - name: AWS_REGION
-      value: "us-east-1"
+      value: "ap-south-1"
     - name: ENVIRONMENT
       value: "staging"
     - name: LOG_LEVEL

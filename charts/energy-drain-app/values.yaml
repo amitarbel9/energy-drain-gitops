@@ -9,6 +9,19 @@ namespace:
   create: true
 backend:
   imagePullSecrets: []
+  # backend.serviceAccount controls the ServiceAccount used by backend pods.
+  # Used for IRSA (IAM Roles for Service Accounts) to grant access to AWS Secrets Manager.
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+  # backend.secretsStore configures the AWS Secrets Store CSI driver to fetch
+  # the database connection string from AWS Secrets Manager.
+  secretsStore:
+    enabled: false
+    secretProviderClassName: ""
+    awsSecretName: ""
+    k8sSecretName: ""
   # backend.name is the base name for backend Deployment and Service
   name: backend
   # backend.replicas is the desired replica count for the backend pods

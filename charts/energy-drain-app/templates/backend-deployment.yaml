@@ -19,6 +19,9 @@ spec:
 {{ include "energy-drain.labels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
+      {{- if .Values.backend.serviceAccount.create }}
+      serviceAccountName: {{ .Values.backend.serviceAccount.name }}
+      {{- end }}
       {{- with .Values.backend.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -30,8 +33,16 @@ spec:
           ports:
             - containerPort: {{ .Values.backend.port }}
           env:
+            {{- if .Values.backend.secretsStore.enabled }}
+            - name: MONGO_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretsStore.k8sSecretName }}
+                  key: MONGO_URL
+            {{- else }}
             - name: MONGO_URL
               value: "{{ .Values.backend.database.mongoUrl }}"
+            {{- end }}
 {{- with .Values.backend.env }}
 {{- toYaml . | nindent 12 }}
 {{- end }}
@@ -56,3 +67,16 @@ spec:
             limits:
               memory: "{{ .Values.backend.resources.limits.memory }}"
               cpu: "{{ .Values.backend.resources.limits.cpu }}"
+          {{- if .Values.backend.secretsStore.enabled }}
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ .Values.backend.secretsStore.secretProviderClassName }}
+          {{- end }}
