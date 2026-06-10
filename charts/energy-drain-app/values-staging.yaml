@@ -7,6 +7,7 @@ namespace:
 backend:
   replicas: 1
   image:
+    repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-backend
     tag: "1.0.0-staging"
 
   # In staging, connect to a managed MongoDB or AWS-backed database
@@ -32,6 +33,7 @@ backend:
 nginx:
   replicas: 1
   image:
+    repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-drain-nginx
     tag: "1.0.2"
 
   service:
