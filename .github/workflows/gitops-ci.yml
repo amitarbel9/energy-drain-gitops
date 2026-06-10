@@ -29,8 +29,9 @@
 #    - Full pipeline summary email
 #
 # 7. promote
-#    - Push changes to production branch
-#    - Notify that ArgoCD pulled the repo locally
+#    - Push validated changes to the staging branch
+#    - ArgoCD running on the AWS staging environment watches this branch
+#      and automatically syncs the Helm chart (using values-staging.yaml)
 #
 # ---------------------------------------------------------------------------
 
@@ -795,10 +796,10 @@ jobs:
           from: GitOps CI
 
   # ---------------------------------------------------------------------------
-  # Job 7 — Promote to Production + ArgoCD Sync Notification
+  # Job 7 — Promote to Staging + ArgoCD Sync Notification
   # ---------------------------------------------------------------------------
   promote:
-    name: Promote — local branch + ArgoCD sync
+    name: Promote — staging branch + ArgoCD sync
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: success()
@@ -826,10 +827,10 @@ jobs:
       - name: Fetch all branches
         run: |
           git fetch origin
-      - name: Promote main to local
+      - name: Promote main to staging
         run: |
-          git checkout -B local origin/main
-          git push origin local --force
+          git checkout -B staging origin/main
+          git push origin staging --force
 
       - name: Send ArgoCD sync notification email
         if: always()
@@ -843,7 +844,7 @@ jobs:
           subject: |
             [${{ github.repository }}]
             ArgoCD —
-            ${{ job.status == 'success' && '✅ Repository Pulled Locally' || '❌ Sync Failed' }}
+            ${{ job.status == 'success' && '✅ Staging Branch Updated' || '❌ Sync Failed' }}
 
           html_body: |
             <!DOCTYPE html>
@@ -857,7 +858,7 @@ jobs:
                       <tr>
                         <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
                           <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
-                            ${{ job.status == 'success' && '✅ ArgoCD Pulled Repo Locally' || '❌ ArgoCD Sync Failed' }}
+                            ${{ job.status == 'success' && '✅ Staging Branch Updated — ArgoCD Will Sync' || '❌ ArgoCD Sync Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
                             Energy Drain CI — ArgoCD Sync
@@ -870,7 +871,7 @@ jobs:
                             <tr>
                               <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
                                 <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
-                                  🔄 ArgoCD — ${{ job.status == 'success' && 'Repository pulled and applied to local cluster' || 'Sync encountered issues' }}
+                                  🔄 ArgoCD — ${{ job.status == 'success' && 'staging branch updated, AWS staging cluster will sync automatically' || 'Sync encountered issues' }}
                                 </span>
                               </td>
                             </tr>

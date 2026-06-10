@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: energy-drain-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mild-byte/energy-drain-gitops.git
+    targetRevision: staging
+    path: charts/energy-drain-app
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: energy-drain-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
