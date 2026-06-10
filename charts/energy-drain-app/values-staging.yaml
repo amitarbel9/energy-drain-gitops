@@ -41,18 +41,19 @@ nginx:
       cpu: "200m"
 ingress:
   enabled: true
-  className: "nginx"
+  className: "alb"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/6f2c0fd2-064c-4832-9013-2724c6e92d78
   hosts:
-    - host: energy-drain-staging.example.com
+    - host: staging.volt-app.dev
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: energy-drain-staging-tls
-      hosts:
-        - energy-drain-staging.example.com
+  tls: []
 monitoring:
   serviceMonitor:
     enabled: true
