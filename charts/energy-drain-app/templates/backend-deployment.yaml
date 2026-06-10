@@ -67,16 +67,30 @@ spec:
             limits:
               memory: "{{ .Values.backend.resources.limits.memory }}"
               cpu: "{{ .Values.backend.resources.limits.cpu }}"
-          {{- if .Values.backend.secretsStore.enabled }}
+          {{- if or .Values.backend.secretsStore.enabled .Values.backend.docdbCa.enabled }}
           volumeMounts:
+            {{- if .Values.backend.secretsStore.enabled }}
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
               readOnly: true
+            {{- end }}
+            {{- if .Values.backend.docdbCa.enabled }}
+            - name: docdb-ca
+              mountPath: "{{ .Values.backend.docdbCa.mountPath }}"
+              readOnly: true
+            {{- end }}
       volumes:
+        {{- if .Values.backend.secretsStore.enabled }}
         - name: secrets-store
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ .Values.backend.secretsStore.secretProviderClassName }}
+        {{- end }}
+        {{- if .Values.backend.docdbCa.enabled }}
+        - name: docdb-ca
+          configMap:
+            name: {{ .Values.backend.docdbCa.configMapName }}
+        {{- end }}
           {{- end }}

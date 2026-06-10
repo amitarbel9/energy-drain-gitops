@@ -22,6 +22,13 @@ backend:
     secretProviderClassName: energy-drain-staging-backend-secrets
     awsSecretName: "staging/energy-drain/mongo-url"
     k8sSecretName: energy-drain-backend-db-secret
+  # DocumentDB requires TLS verification against the Amazon RDS CA bundle.
+  # The connection string in Secrets Manager references it via
+  # tlsCAFile=/etc/ssl/docdb/global-bundle.pem
+  docdbCa:
+    enabled: true
+    configMapName: energy-drain-docdb-ca
+    mountPath: "/etc/ssl/docdb"
   resources:
     requests:
       memory: "256Mi"

@@ -35,3 +35,6 @@ secrets/
 *.pem
 *.key
 *.crt
+
+# Public CA bundles are not secrets and must be in git for Helm .Files.Get
+!charts/energy-drain-app/files/global-bundle.pem

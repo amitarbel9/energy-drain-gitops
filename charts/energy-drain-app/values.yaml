@@ -22,6 +22,13 @@ backend:
     secretProviderClassName: ""
     awsSecretName: ""
     k8sSecretName: ""
+  # backend.docdbCa mounts the Amazon RDS/DocumentDB CA bundle (files/global-bundle.pem)
+  # into the pod so pymongo can verify the DocumentDB TLS certificate.
+  # MONGO_URL must reference it via tlsCAFile=<mountPath>/global-bundle.pem.
+  docdbCa:
+    enabled: false
+    configMapName: ""
+    mountPath: "/etc/ssl/docdb"
   # backend.name is the base name for backend Deployment and Service
   name: backend
   # backend.replicas is the desired replica count for the backend pods

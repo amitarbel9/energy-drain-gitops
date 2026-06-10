@@ -1,0 +1,15 @@
+{{- if .Values.backend.docdbCa.enabled }}
+# Amazon RDS/DocumentDB CA bundle, mounted into the backend so pymongo can
+# verify the DocumentDB TLS certificate (referenced via tlsCAFile in MONGO_URL).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.backend.docdbCa.configMapName }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+{{ include "energy-drain.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  global-bundle.pem: |
+{{ .Files.Get "files/global-bundle.pem" | indent 4 }}
+{{- end }}
