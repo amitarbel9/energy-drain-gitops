@@ -487,9 +487,8 @@ jobs:
       - name: All app pods are Ready
         run: |
           kubectl get pods -n "$APP_NAMESPACE"
-          NOT_READY=$(kubectl get pods -n "$APP_NAMESPACE" --no-headers \
-            | awk '$2 !~ /^([0-9]+)\/\1$/ || $3 != "Running" {print $1}')
-          [ -z "$NOT_READY" ] || { echo "::error::pods not ready: $NOT_READY"; exit 1; }
+          kubectl wait --for=condition=Ready pods --all -n "$APP_NAMESPACE" --timeout=60s \
+            || { echo "::error::some pods did not become Ready within 60s"; exit 1; }
 
       - name: Prometheus is scraping the backend (target up)
         # Monitoring that silently breaks is worse than none - the whole stack
