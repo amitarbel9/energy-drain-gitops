@@ -841,262 +841,6 @@ jobs:
           to: ${{ secrets.EMAIL_USERNAME }}
           from: GitOps CD
 
-  # ------------------------------------------------------- promote to prod --
-  promote-production:
-    name: Promote to production (requires approval)
-    needs:
-      - setup
-      - smoke-tests
-      - api-acceptance
-      - certificate-expiry
-      - monitoring-checks
-      - rollback-drill
-    # All gates must pass; monitoring/drill may be legitimately skipped.
-    if: >-
-      always() &&
-      needs.setup.outputs.deploy_tests == 'true' &&
-      needs.smoke-tests.result == 'success' &&
-      needs.api-acceptance.result == 'success' &&
-      needs.certificate-expiry.result == 'success' &&
-      (needs.monitoring-checks.result == 'success' || needs.monitoring-checks.result == 'skipped') &&
-      (needs.rollback-drill.result == 'success' || needs.rollback-drill.result == 'skipped')
-    # The job pauses here until a required reviewer approves - configured on
-    # the GitHub environment (Settings -> Environments -> production).
-    environment: production
-    concurrency:
-      group: production-promotion
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout (full history, push-capable token)
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT }}
-          fetch-depth: 0
-
-      - name: Fast-forward production branch to the CD-tested commit
-        # Promotes the EXACT SHA these CD tests validated - never the current
-        # tip of main, which may contain newer untested commits. A plain push
-        # enforces fast-forward-only, keeping production a pure pointer into
-        # main's history. Prod ArgoCD (auto-sync on the production branch)
-        # picks the commit up from inside the cluster - CI holds no prod creds.
-        run: |
-          TESTED_SHA="${{ github.event.workflow_run.head_sha }}"
-          if [ -z "$TESTED_SHA" ]; then TESTED_SHA="${{ github.sha }}"; fi
-          echo "promoting tested commit $TESTED_SHA to production"
-          git push origin "$TESTED_SHA:refs/heads/production"
-          echo "production branch moved - ArgoCD will deploy it within ~3 minutes"
-
-      - name: Send production promotion status email
-        if: always()
-        uses: dawidd6/action-send-mail@v3
-        env:
-          JOB_TITLE: Production Promotion
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: |
-            [${{ github.repository }}]
-            ${{ env.JOB_TITLE }} —
-            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
-          html_body: |
-            <!DOCTYPE html>
-            <html lang="en">
-            <head><meta charset="UTF-8"/></head>
-            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
-                <tr>
-                  <td align="center">
-                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
-                      <tr>
-                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
-                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
-                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
-                          </h1>
-                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Energy Drain CD — ${{ env.JOB_TITLE }}
-                          </p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
-                          <table cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
-                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
-                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
-                                </span>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
-                          <table width="100%" cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
-                            </tr>
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:20px 32px;">
-                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
-                            View Run →
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-          to: ${{ secrets.EMAIL_USERNAME }}
-          from: GitOps CD
-
-  # ------------------------------------------------------ production smoke --
-  production-smoke:
-    name: Production smoke tests (post-promotion)
-    needs: promote-production
-    if: needs.promote-production.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      PROD_URL: https://volt-app.dev
-      PROD_HOST: volt-app.dev
-    steps:
-      - name: Health endpoint (allow time for ArgoCD poll + rollout)
-        run: |
-          for i in $(seq 1 32); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PROD_URL/api/health" || echo 000)
-            [ "$CODE" = "200" ] && { echo "health OK after $((i*15))s"; exit 0; }
-            sleep 15
-          done
-          echo "::error::production /api/health did not return 200 within 8 minutes"
-          exit 1
-
-      - name: TLS certificate matches the production hostname
-        run: |
-          echo | openssl s_client -connect "$PROD_HOST:443" -servername "$PROD_HOST" 2>/dev/null \
-            | openssl x509 -noout -checkhost "$PROD_HOST" | grep -q "does match" \
-            || { echo "::error::certificate does not match $PROD_HOST"; exit 1; }
-
-      - name: Database path answers (no 5xx from DB-backed endpoint)
-        run: |
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 35 \
-            -X POST "$PROD_URL/api/auth/login" \
-            -H 'Content-Type: application/json' \
-            -d '{"email":"cd-prod-smoke@example.com","password":"wrong-on-purpose"}')
-          echo "login probe: HTTP $CODE"
-          case "$CODE" in
-            5*|000) echo "::error::production DB wiring is broken (HTTP $CODE)"; exit 1 ;;
-            *) echo "DB answered - connectivity OK" ;;
-          esac
-
-      - name: Auth config exposes the Google OAuth client ID
-        run: |
-          CID=$(curl -s --max-time 10 "$PROD_URL/api/auth/config" | python3 -c \
-            'import json,sys; print(json.load(sys.stdin).get("google_client_id",""))')
-          [ -n "$CID" ] || { echo "::error::google_client_id empty in production"; exit 1; }
-          echo "google_client_id present"
-
-      - name: Send production smoke status email
-        if: always()
-        uses: dawidd6/action-send-mail@v3
-        env:
-          JOB_TITLE: Production Smoke Tests
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: |
-            [${{ github.repository }}]
-            ${{ env.JOB_TITLE }} —
-            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
-          html_body: |
-            <!DOCTYPE html>
-            <html lang="en">
-            <head><meta charset="UTF-8"/></head>
-            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
-                <tr>
-                  <td align="center">
-                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
-                      <tr>
-                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
-                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
-                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
-                          </h1>
-                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
-                            Energy Drain CD — ${{ env.JOB_TITLE }}
-                          </p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
-                          <table cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
-                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
-                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
-                                </span>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
-                          <table width="100%" cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
-                            </tr>
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
-                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:20px 32px;">
-                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
-                            View Run →
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-          to: ${{ secrets.EMAIL_USERNAME }}
-          from: GitOps CD
-
   # ---------------------------------------------------------------- summary --
   summary:
     name: CD summary
@@ -1108,8 +852,6 @@ jobs:
       - monitoring-checks
       - rollback-drill
       - performance-tests
-      - promote-production
-      - production-smoke
     if: always() && needs.setup.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -1125,11 +867,14 @@ jobs:
             echo "| Monitoring checks | ${{ needs.monitoring-checks.result }} |"
             echo "| Rollback drill | ${{ needs.rollback-drill.result }} |"
             echo "| Performance | ${{ needs.performance-tests.result }} |"
-            echo "| Production promotion | ${{ needs.promote-production.result }} |"
-            echo "| Production smoke | ${{ needs.production-smoke.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ needs.setup.outputs.cluster_access }}" != "true" ]; then
             echo "::notice::monitoring & rollback-drill are skipped until the AWS_OIDC_ROLE_ARN secret is configured (IAM role with GitHub OIDC trust for this repo + EKS access)"
+          fi
+          if [ "${{ needs.smoke-tests.result }}" = "success" ] && \
+             [ "${{ needs.api-acceptance.result }}" = "success" ] && \
+             [ "${{ needs.certificate-expiry.result }}" = "success" ]; then
+            echo "::notice::All staging gates passed - to deploy to production, run the 'Promote to Production' workflow (Actions tab). It promotes this tested commit."
           fi
 
       - name: Send CD summary report email
@@ -1191,14 +936,6 @@ jobs:
                               <td style="padding:6px 0;font-size:13px;color:#333;">🚀 Performance</td>
                               <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.performance-tests.result == 'success' && '#2e7d32' || needs.performance-tests.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.performance-tests.result }}</td>
                             </tr>
-                            <tr>
-                              <td style="padding:6px 0;font-size:13px;color:#333;">🚦 Production promotion</td>
-                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.promote-production.result == 'success' && '#2e7d32' || needs.promote-production.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.promote-production.result }}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding:6px 0;font-size:13px;color:#333;">🏭 Production smoke</td>
-                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.production-smoke.result == 'success' && '#2e7d32' || needs.production-smoke.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.production-smoke.result }}</td>
-                            </tr>
                           </table>
                         </td>
                       </tr>
@@ -1241,8 +978,7 @@ jobs:
         run: |
           for r in "${{ needs.smoke-tests.result }}" "${{ needs.api-acceptance.result }}" \
                    "${{ needs.certificate-expiry.result }}" "${{ needs.monitoring-checks.result }}" \
-                   "${{ needs.rollback-drill.result }}" "${{ needs.performance-tests.result }}" \
-                   "${{ needs.promote-production.result }}" "${{ needs.production-smoke.result }}"; do
+                   "${{ needs.rollback-drill.result }}" "${{ needs.performance-tests.result }}"; do
             [ "$r" = "failure" ] && exit 1
           done
           exit 0
