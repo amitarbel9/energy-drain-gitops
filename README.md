@@ -163,7 +163,11 @@ that bit us on 2026-06-11:
    ```
 
 2. **kube-prometheus-stack** (provides the ServiceMonitor CRD; the app sync
-   fails without it) — see "Install Prometheus and Grafana" above.
+   fails without it) — see "Install Prometheus and Grafana" above. Do NOT
+   omit `--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false`:
+   without it Prometheus only scrapes ServiceMonitors labeled
+   `release: prometheus` and silently ignores the app's (broke 2026-06-11;
+   caught by the CD monitoring check).
 
 3. **ECR images** — the tags referenced in `values-staging.yaml` must exist in
    ECR. If the registry was wiped, re-run the latest CI build in the app repo
