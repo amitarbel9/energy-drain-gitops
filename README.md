@@ -124,6 +124,62 @@ Confirm the app is running:
 kubectl get all -n energy-drain-app
 ```
 
+## Staging Database Secret Contract
+
+The staging backend's `MONGO_URL` lives in AWS Secrets Manager
+(`staging/energy-drain/mongo-url`, region `ap-south-1`) and is synced into the
+cluster by the Secrets Store CSI driver. Two rules keep it from breaking:
+
+1. **Never edit the secret by hand** — use `scripts/set-staging-mongo-secret.sh`,
+   which validates the value (requires `tls=true` and `retryWrites=false`,
+   rejects `tlsCAFile`). The Helm chart appends
+   `&tlsCAFile=<backend.docdbCa.mountPath>/global-bundle.pem` at deploy time, so
+   the secret must hold the base URL only.
+2. **Restart the backend after changing it** — the CSI driver only re-reads
+   Secrets Manager when a pod mounts the volume:
+
+   ```bash
+   kubectl rollout restart deployment/energy-drain-staging-energy-drain-app-backend -n energy-drain-staging
+   ```
+
+## Disaster Recovery (cluster rebuild checklist)
+
+Everything ArgoCD manages comes back from git, but the following live outside
+GitOps and must exist before the app can become healthy. This is the exact list
+that bit us on 2026-06-11:
+
+1. **ArgoCD itself** + repo credentials for this (private) repo:
+
+   ```bash
+   kubectl create namespace argocd
+   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   kubectl create secret generic repo-energy-drain-gitops -n argocd \
+     --from-literal=type=git \
+     --from-literal=url=https://github.com/mild-byte/energy-drain-gitops.git \
+     --from-literal=username=git \
+     --from-literal=password=<GitHub PAT with read access to this repo>
+   kubectl label secret repo-energy-drain-gitops -n argocd argocd.argoproj.io/secret-type=repository
+   kubectl apply -f argocd/energy-drain-staging.yaml
+   ```
+
+2. **kube-prometheus-stack** (provides the ServiceMonitor CRD; the app sync
+   fails without it) — see "Install Prometheus and Grafana" above.
+
+3. **ECR images** — the tags referenced in `values-staging.yaml` must exist in
+   ECR. If the registry was wiped, re-run the latest CI build in the app repo
+   (`mild-byte/energy-drain-app`).
+
+4. **ACM certificate** for `staging.volt-app.dev` in `ap-south-1` — the ALB is
+   not created without it. If re-issued, update
+   `alb.ingress.kubernetes.io/certificate-arn` in `values-staging.yaml`
+   (the ingress events show `CertificateNotFound` when this is stale).
+
+5. **The MONGO_URL secret** — `scripts/set-staging-mongo-secret.sh` (see above).
+
+Note: the `energy-drain-staging` Application tracks the **`staging` branch**;
+CI updates both `main` and `staging`, but manual chart changes must be pushed
+to both or staging will drift.
+
 ## Contribution
 
 Contributions are welcome for Argo CD application manifests, Helm chart improvements, or monitoring enhancements.

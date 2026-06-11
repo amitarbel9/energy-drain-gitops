@@ -34,11 +34,26 @@ spec:
             - containerPort: {{ .Values.backend.port }}
           env:
             {{- if .Values.backend.secretsStore.enabled }}
+            {{- if .Values.backend.docdbCa.enabled }}
+            # The secret holds only the base connection string. The tlsCAFile
+            # param is appended here because the chart owns the CA mount path;
+            # keeping it out of the secret means recreating the secret cannot
+            # break TLS verification. The base URL must end with a query string
+            # (e.g. ?tls=true&retryWrites=false) - see scripts/set-staging-mongo-secret.sh.
+            - name: MONGO_URL_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretsStore.k8sSecretName }}
+                  key: MONGO_URL
+            - name: MONGO_URL
+              value: "$(MONGO_URL_BASE)&tlsCAFile={{ .Values.backend.docdbCa.mountPath }}/global-bundle.pem"
+            {{- else }}
             - name: MONGO_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.backend.secretsStore.k8sSecretName }}
                   key: MONGO_URL
+            {{- end }}
             {{- else }}
             - name: MONGO_URL
               value: "{{ .Values.backend.database.mongoUrl }}"
