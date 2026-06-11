@@ -141,6 +141,88 @@ jobs:
             *) echo "::error::got $CODE - DB wiring is likely broken (5xx/timeout was today's failure mode)"; exit 1 ;;
           esac
 
+      - name: Send smoke tests status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: Smoke Tests
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
+
   # ------------------------------------------------------- api acceptance --
   api-acceptance:
     name: API acceptance tests
@@ -188,6 +270,88 @@ jobs:
             *) echo "::error::expected 4xx, got $CODE"; exit 1 ;;
           esac
 
+      - name: Send API acceptance status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: API Acceptance Tests
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
+
   # ----------------------------------------------------------- cert expiry --
   certificate-expiry:
     name: Certificate expiry check
@@ -211,6 +375,88 @@ jobs:
             echo "::error::certificate expires in $DAYS days (<30) - renew/rotate now"
             exit 1
           fi
+
+      - name: Send certificate expiry status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: Certificate Expiry Check
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
 
   # ------------------------------------------------------------ monitoring --
   monitoring-checks:
@@ -266,6 +512,88 @@ jobs:
             echo "::error::only $UP_COUNT of $TOTAL targets are up"
             exit 1
           fi
+
+      - name: Send monitoring checks status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: Monitoring Checks
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
 
   # -------------------------------------------------------- rollback drill --
   rollback-drill:
@@ -331,6 +659,88 @@ jobs:
           CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE_URL/api/health")
           [ "$CODE" = "200" ] || { echo "::error::health check failed after drill: $CODE"; exit 1; }
 
+      - name: Send rollback drill status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: Rollback Drill
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
+
   # ------------------------------------------------------------ performance --
   performance-tests:
     name: Performance tests (weekly)
@@ -349,6 +759,88 @@ jobs:
           path: tests/cd/perf-baseline.js
         env:
           K6_BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Send performance tests status email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          JOB_TITLE: Performance Tests
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            ${{ env.JOB_TITLE }} —
+            ${{ job.status == 'success' && '✅ Passed' || '❌ Failed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ job.status == 'success' && '#1a7a1a' || '#8b0000' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ job.status == 'success' && '✅' || '❌' }} ${{ env.JOB_TITLE }} ${{ job.status == 'success' && 'Passed' || 'Failed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — ${{ env.JOB_TITLE }}
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="background:${{ job.status == 'success' && '#e8f5e9' || '#fdecea' }};border:1px solid ${{ job.status == 'success' && '#a5d6a7' || '#f5c6c6' }};border-radius:6px;padding:10px 18px;">
+                                <span style="font-size:13px;font-weight:600;color:${{ job.status == 'success' && '#2e7d32' || '#b71c1c' }};">
+                                  🧪 ${{ env.JOB_TITLE }} — ${{ job.status == 'success' && 'All checks passed' || 'Checks failed' }}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
 
   # ---------------------------------------------------------------- summary --
   summary:
@@ -380,6 +872,106 @@ jobs:
           if [ "${{ needs.setup.outputs.cluster_access }}" != "true" ]; then
             echo "::notice::monitoring & rollback-drill are skipped until the AWS_OIDC_ROLE_ARN secret is configured (IAM role with GitHub OIDC trust for this repo + EKS access)"
           fi
+
+      - name: Send CD summary report email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: |
+            [${{ github.repository }}]
+            CD Summary —
+            ${{ contains(needs.*.result, 'failure') && '❌ Failures detected' || '✅ All suites passed' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"/></head>
+            <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
+                      <tr>
+                        <td style="background:${{ contains(needs.*.result, 'failure') && '#8b0000' || '#1a7a1a' }};padding:24px 32px;">
+                          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">
+                            ${{ contains(needs.*.result, 'failure') && '❌ CD Tests Failed' || '✅ CD Tests Passed' }}
+                          </h1>
+                          <p style="margin:6px 0 0 0;font-size:12px;color:rgba(255,255,255,0.7);">
+                            Energy Drain CD — Full Pipeline Summary
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">🔥 Smoke tests</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.smoke-tests.result == 'success' && '#2e7d32' || needs.smoke-tests.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.smoke-tests.result }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">🔌 API acceptance</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.api-acceptance.result == 'success' && '#2e7d32' || needs.api-acceptance.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.api-acceptance.result }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">📜 Certificate expiry</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.certificate-expiry.result == 'success' && '#2e7d32' || needs.certificate-expiry.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.certificate-expiry.result }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">📈 Monitoring checks</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.monitoring-checks.result == 'success' && '#2e7d32' || needs.monitoring-checks.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.monitoring-checks.result }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">🔄 Rollback drill</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.rollback-drill.result == 'success' && '#2e7d32' || needs.rollback-drill.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.rollback-drill.result }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:6px 0;font-size:13px;color:#333;">🚀 Performance</td>
+                              <td align="right" style="padding:6px 0;font-size:13px;font-weight:600;color:${{ needs.performance-tests.result == 'success' && '#2e7d32' || needs.performance-tests.result == 'failure' && '#b71c1c' || '#888888' }};">${{ needs.performance-tests.result }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:16px 32px;border-bottom:1px solid #eeeeee;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;width:110px;">Environment</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">staging.volt-app.dev</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Commit</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;font-family:monospace;">${{ github.sha }}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:4px 0;font-size:12px;color:#888;">Trigger</td>
+                              <td style="padding:4px 0;font-size:12px;color:#333;">${{ github.event_name }}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                             style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none;">
+                            View Run →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: GitOps CD
+
+      - name: Fail the workflow if any suite failed
+        run: |
           for r in "${{ needs.smoke-tests.result }}" "${{ needs.api-acceptance.result }}" \
                    "${{ needs.certificate-expiry.result }}" "${{ needs.monitoring-checks.result }}" \
                    "${{ needs.rollback-drill.result }}" "${{ needs.performance-tests.result }}"; do
