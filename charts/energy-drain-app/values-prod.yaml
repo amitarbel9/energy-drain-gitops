@@ -1,17 +1,38 @@
-# values-prod.yaml overrides chart defaults for production.
-# This file is applied after values.yaml during `helm install -f`.
+# values-prod.yaml overrides base values for production deployments.
+# This file is applied after values.yaml when using `helm install -f`.
+#
+# IMPORTANT: namespace.name must stay "energy-drain-production" - the IRSA
+# trust policy of energy-drain-production-secrets-csi only allows the
+# energy-drain-backend ServiceAccount in that exact namespace.
 
 namespace:
-  name: energy-drain-prod
-
+  name: energy-drain-production
 backend:
   replicas: 3
   image:
-    tag: "1.0.0"
-
+    repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-backend
+    # Pin to a tag already validated in staging; bump deliberately on release.
+    tag: "dcffbeb"
+  # MONGO_URL base comes from AWS Secrets Manager via the Secrets Store CSI
+  # driver (see secretsStore below); the chart appends tlsCAFile itself.
   database:
-    mongoUrl: "mongodb://mongodb-prod.c789def123.mongodb.net:27017"
-
+    mongoUrl: ""
+  serviceAccount:
+    create: true
+    name: energy-drain-backend
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::523555653711:role/energy-drain-production-secrets-csi"
+  secretsStore:
+    enabled: true
+    secretProviderClassName: energy-drain-production-backend-secrets
+    awsSecretName: "production/energy-drain/mongo-url"
+    k8sSecretName: energy-drain-backend-db-secret
+  # DocumentDB requires TLS verification against the Amazon RDS CA bundle.
+  # The chart appends tlsCAFile=<mountPath>/global-bundle.pem to MONGO_URL.
+  docdbCa:
+    enabled: true
+    configMapName: energy-drain-docdb-ca
+    mountPath: "/etc/ssl/docdb"
   resources:
     requests:
       memory: "512Mi"
@@ -19,23 +40,25 @@ backend:
     limits:
       memory: "1Gi"
       cpu: "1000m"
-
   env:
     - name: AWS_REGION
-      value: "us-east-1"
+      value: "ap-south-1"
     - name: ENVIRONMENT
       value: "production"
     - name: LOG_LEVEL
       value: "warn"
-
-inginx:
+    # Google OAuth client ID (public identifier, not a secret) used by the
+    # frontend Sign-In button via /api/auth/config. The OAuth client must
+    # list https://volt-app.dev under Authorized JavaScript origins.
+    - name: GOOGLE_CLIENT_ID
+      value: "373082865022-7j13og8l3jvkgvp1cii0cr9iqgerb98u.apps.googleusercontent.com"
+nginx:
   replicas: 2
   image:
-    tag: "1.0.2"
-
+    repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-drain-nginx
+    tag: "dcffbeb"
   service:
     type: LoadBalancer
-
   resources:
     requests:
       memory: "256Mi"
@@ -43,22 +66,21 @@ inginx:
     limits:
       memory: "512Mi"
       cpu: "500m"
-
 ingress:
   enabled: true
-  className: "nginx"
+  className: "alb"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/34ba914e-b08e-4039-86cc-a4ebaf069319
   hosts:
-    - host: energy-drain.example.com
+    - host: volt-app.dev
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: energy-drain-prod-tls
-      hosts:
-        - energy-drain.example.com
+  tls: []
 monitoring:
   serviceMonitor:
     enabled: true
