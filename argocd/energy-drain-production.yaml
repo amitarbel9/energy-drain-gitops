@@ -1,10 +1,12 @@
 # Production Application - applied to the ArgoCD instance running on the
 # energy-drain-production cluster.
 #
-# Deliberately NO automated sync policy: ArgoCD detects new commits on main
-# and shows the app as OutOfSync, but nothing deploys until a human approves
-# by clicking SYNC in the ArgoCD UI (or `argocd app sync energy-drain-production`).
-# That manual sync IS the production approval gate.
+# Tracks the "production" branch: a fast-forward-only pointer to the last
+# CD-tested commit of main that an admin approved. Nobody commits to this
+# branch directly - the promote-production job in gitops-cd.yml moves it
+# after the GitHub "production" environment approval (the human gate).
+# Sync is automated here because the approval already happened in the
+# pipeline; rollback = move the production branch back one commit.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -14,7 +16,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/mild-byte/energy-drain-gitops.git
-    targetRevision: main
+    targetRevision: production
     path: charts/energy-drain-app
     helm:
       valueFiles:
@@ -24,5 +26,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: energy-drain-production
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
