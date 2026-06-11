@@ -7,7 +7,7 @@ backend:
   replicas: 1
   image:
     repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-backend
-    tag: "415f0e9"
+    tag: "2875f76"
   # MONGO_URL is fetched from AWS Secrets Manager via the Secrets Store CSI
   # driver (see secretsStore below) - this value is unused when enabled.
   database:
@@ -52,7 +52,7 @@ nginx:
   replicas: 1
   image:
     repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-drain-nginx
-    tag: "415f0e9"
+    tag: "2875f76"
   service:
     type: LoadBalancer
   resources:
