@@ -62,11 +62,55 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
-      - name: Fast-forward production branch to the tested commit
+      - name: Sync image tags and fast-forward production branch
         run: |
+          TESTED_SHA="${{ steps.resolve.outputs.sha }}"
           echo "production currently at: $(git rev-parse origin/production)"
-          git push origin "${{ steps.resolve.outputs.sha }}:refs/heads/production"
-          echo "production branch moved to ${{ steps.resolve.outputs.sha }} - ArgoCD deploys within ~3 minutes"
+          echo "promoting tested SHA: $TESTED_SHA"
+
+          # Work on the tested commit in a detached HEAD so we can optionally
+          # add a tag-sync commit on top before pushing to production.
+          git checkout "$TESTED_SHA"
+          git config user.email "gitops-promote@ci"
+          git config user.name "Promote to Production"
+
+          # Read image tags from values-staging.yaml at this exact tested SHA.
+          # These are the tags that passed all CD tests - they are what
+          # production should run. This eliminates manually maintained tags in
+          # values-prod.yaml that go stale whenever ECR images are deleted.
+          BACKEND_TAG=$(grep -A3 'repository:.*energy-backend' \
+            charts/energy-drain-app/values-staging.yaml \
+            | grep 'tag:' | head -1 | awk '{print $2}' | tr -d '"')
+          NGINX_TAG=$(grep -A3 'repository:.*energy-drain-nginx' \
+            charts/energy-drain-app/values-staging.yaml \
+            | grep 'tag:' | head -1 | awk '{print $2}' | tr -d '"')
+
+          echo "syncing tags to production: backend=$BACKEND_TAG nginx=$NGINX_TAG"
+
+          python3 - charts/energy-drain-app/values-prod.yaml \
+              "$BACKEND_TAG" "$NGINX_TAG" <<'PY'
+          import sys, re
+          path, backend_tag, nginx_tag = sys.argv[1], sys.argv[2], sys.argv[3]
+          content = open(path).read()
+          content = re.sub(
+              r'(repository:.*energy-backend[^\n]*\n\s*tag:\s*)[^\n]+',
+              r'\g<1>"' + backend_tag + '"', content)
+          content = re.sub(
+              r'(repository:.*energy-drain-nginx[^\n]*\n\s*tag:\s*)[^\n]+',
+              r'\g<1>"' + nginx_tag + '"', content)
+          open(path, 'w').write(content)
+          PY
+
+          git add charts/energy-drain-app/values-prod.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(production): sync image tags from tested staging SHA ($BACKEND_TAG)"
+            echo "committed tag sync: backend=$BACKEND_TAG nginx=$NGINX_TAG"
+          else
+            echo "tags already up to date, no sync commit needed"
+          fi
+
+          git push origin HEAD:refs/heads/production
+          echo "production branch updated - ArgoCD deploys within ~3 minutes"
 
       - name: Send production promotion status email
         if: always()

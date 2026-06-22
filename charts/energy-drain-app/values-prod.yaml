@@ -11,8 +11,10 @@ backend:
   replicas: 3
   image:
     repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-backend
-    # Pin to a tag already validated in staging; bump deliberately on release.
-    tag: "dcffbeb"
+    # DO NOT edit this tag manually. The Promote to Production workflow writes
+    # it automatically from values-staging.yaml at promotion time, keeping it
+    # in sync with the staging-validated build.
+    tag: "0fd252b"
   # MONGO_URL base comes from AWS Secrets Manager via the Secrets Store CSI
   # driver (see secretsStore below); the chart appends tlsCAFile itself.
   database:
@@ -56,7 +58,8 @@ nginx:
   replicas: 2
   image:
     repository: 523555653711.dkr.ecr.ap-south-1.amazonaws.com/energy-drain-nginx
-    tag: "dcffbeb"
+    # DO NOT edit - managed by Promote to Production workflow (see backend note)
+    tag: "0fd252b"
   service:
     type: LoadBalancer
   resources:
