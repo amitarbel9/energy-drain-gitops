@@ -365,9 +365,17 @@ jobs:
         # whole environment down; this catches expiry/replacement drift early.
         run: |
           END=$(echo | openssl s_client -connect "$HOSTNAME:443" -servername "$HOSTNAME" 2>/dev/null \
-            | openssl x509 -noout -enddate | cut -d= -f2)
+            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+          if [ -z "$END" ]; then
+            echo "::error::could not retrieve certificate from $HOSTNAME:443 - host may be unreachable or TLS is not serving"
+            exit 1
+          fi
           echo "certificate expires: $END"
-          END_TS=$(date -d "$END" +%s)
+          END_TS=$(date -d "$END" +%s 2>/dev/null)
+          if [ -z "$END_TS" ]; then
+            echo "::error::could not parse certificate expiry date: $END"
+            exit 1
+          fi
           NOW_TS=$(date +%s)
           DAYS=$(( (END_TS - NOW_TS) / 86400 ))
           echo "days remaining: $DAYS"
