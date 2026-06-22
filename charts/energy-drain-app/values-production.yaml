@@ -1,4 +1,4 @@
-# values-prod.yaml overrides base values for production deployments.
+# values-production.yaml overrides base values for production deployments.
 # This file is applied after values.yaml when using `helm install -f`.
 #
 # IMPORTANT: namespace.name must stay "energy-drain-production" - the IRSA

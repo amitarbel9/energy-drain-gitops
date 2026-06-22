@@ -77,7 +77,7 @@ jobs:
           # Read image tags from values-staging.yaml at this exact tested SHA.
           # These are the tags that passed all CD tests - they are what
           # production should run. This eliminates manually maintained tags in
-          # values-prod.yaml that go stale whenever ECR images are deleted.
+          # values-production.yaml that go stale whenever ECR images are deleted.
           BACKEND_TAG=$(grep -A3 'repository:.*energy-backend' \
             charts/energy-drain-app/values-staging.yaml \
             | grep 'tag:' | head -1 | awk '{print $2}' | tr -d '"')
@@ -87,7 +87,7 @@ jobs:
 
           echo "syncing tags to production: backend=$BACKEND_TAG nginx=$NGINX_TAG"
 
-          python3 - charts/energy-drain-app/values-prod.yaml \
+          python3 - charts/energy-drain-app/values-production.yaml \
               "$BACKEND_TAG" "$NGINX_TAG" <<'PY'
           import sys, re
           path, backend_tag, nginx_tag = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -101,7 +101,7 @@ jobs:
           open(path, 'w').write(content)
           PY
 
-          git add charts/energy-drain-app/values-prod.yaml
+          git add charts/energy-drain-app/values-production.yaml
           if ! git diff --cached --quiet; then
             git commit -m "chore(production): sync image tags from tested staging SHA ($BACKEND_TAG)"
             echo "committed tag sync: backend=$BACKEND_TAG nginx=$NGINX_TAG"
