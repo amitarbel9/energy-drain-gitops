@@ -70,7 +70,7 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/64f994d4-72b6-4595-b9a8-84b8eaa302e1
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/90b30edd-9806-4875-b9ba-34d4671b1f28
   hosts:
     - host: staging.volt-app.dev
       paths:
