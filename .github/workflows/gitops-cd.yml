@@ -87,9 +87,30 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "deploy_tests=$DEPLOY performance=$PERF rollback_drill=$DRILL cluster_access=$HAS_AWS_ROLE"
 
-      - name: Wait 2 minutes for ArgoCD to sync the new revision
+      - name: Configure AWS credentials for sync wait (OIDC)
+        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up kubeconfig for sync wait
+        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Wait for ArgoCD to sync the new revision
         if: github.event_name == 'workflow_run'
-        run: sleep 120
+        run: |
+          if kubectl get application "$ARGOCD_APP" -n argocd > /dev/null 2>&1; then
+            echo "Cluster access available - polling ArgoCD until Synced + Healthy"
+            kubectl wait application "$ARGOCD_APP" -n argocd \
+              --for=jsonpath='{.status.sync.status}'=Synced --timeout=300s
+            kubectl wait application "$ARGOCD_APP" -n argocd \
+              --for=jsonpath='{.status.health.status}'=Healthy --timeout=300s
+          else
+            echo "No cluster access - sleeping 120s as fallback"
+            sleep 120
+          fi
 
   # ---------------------------------------------------------------- smoke --
   smoke-tests:
