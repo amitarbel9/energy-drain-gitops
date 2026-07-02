@@ -779,10 +779,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1.2.1
+
       - name: Run k6 baseline against staging
         # Staging is small (1 replica), so thresholds are trend guards, not
         # capacity numbers - they catch regressions release over release.
-        uses: grafana/run-k6-action@v1
+        uses: grafana/run-k6-action@v1.4.0
         with:
           path: tests/cd/perf-baseline.js
         env:
