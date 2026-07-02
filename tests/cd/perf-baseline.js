@@ -18,18 +18,18 @@ export const options = {
   },
   thresholds: {
     // Fail the run if these regress; tune after a few weeks of baselines.
-    http_req_duration: ['p(95)<800'],
     'http_req_duration{endpoint:health}': ['p(95)<300'],
-    http_req_failed: ['rate<0.02'],
+    'http_req_failed{endpoint:health}': ['rate<0.02'],
   },
 };
 
-export default function () {
-  const health = http.get(`${BASE_URL}/api/health`, {
-    tags: { endpoint: 'health' },
-  });
-  check(health, { 'health is 200': (r) => r.status === 200 });
-
+// Runs once before the VUs start iterating (not once per VU/iteration).
+// /api/auth/* is rate-limited server-side (60 req/min, burst 20 per IP -
+// see nginx.conf) to block brute-force login attempts. Calling it from
+// every VU on every iteration looks identical to that attack pattern and
+// gets throttled with 503s - this just proves the auth path is wired up,
+// once, well inside that budget.
+export function setup() {
   const config = http.get(`${BASE_URL}/api/auth/config`, {
     tags: { endpoint: 'auth-config' },
   });
@@ -47,6 +47,15 @@ export default function () {
     },
   );
   check(login, { 'login answered by DB (not 5xx)': (r) => r.status < 500 });
+}
+
+// Sustained load target: only /api/health is safe to hammer repeatedly,
+// since it's the only endpoint here that isn't behind the auth rate limiter.
+export default function () {
+  const health = http.get(`${BASE_URL}/api/health`, {
+    tags: { endpoint: 'health' },
+  });
+  check(health, { 'health is 200': (r) => r.status === 200 });
 
   sleep(1);
 }
