@@ -1,0 +1,49 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx
+  namespace: {{ .Values.namespace.name }}
+  labels:
+{{ include "energy-drain.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+{{ include "energy-drain.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nginx
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # nginx is the internet-facing tier - the ALB (target-type: ip) connects
+    # directly to pod IPs, bypassing kube-proxy, so NetworkPolicy still
+    # applies to that traffic. Its actual exposure boundary is the AWS
+    # security group on the ALB/nodes, not this policy; restricting this
+    # further isn't possible without a fixed, known ALB source IP range.
+    - from: []
+      ports:
+        - protocol: TCP
+          port: {{ .Values.nginx.port }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # nginx only ever needs to reach the backend to proxy /api/* requests.
+    - to:
+        - podSelector:
+            matchLabels:
+{{ include "energy-drain.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: backend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+{{- end }}

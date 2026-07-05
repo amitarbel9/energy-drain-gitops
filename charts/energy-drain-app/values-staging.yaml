@@ -80,3 +80,15 @@ ingress:
 monitoring:
   serviceMonitor:
     enabled: true
+# NOTE: the policies render and apply cleanly, but as of 2026-07-05 aren't
+# actually enforced yet - this cluster's aws-node (self-managed Helm install,
+# not the EKS-managed vpc-cni add-on) has enable-network-policy-controller
+# set to false, and its ClusterRole is missing the RBAC to watch
+# networking.k8s.io/networkpolicies. Confirmed live: a test default-deny
+# policy did not block traffic, and zero PolicyEndpoint objects were ever
+# created. Fixing this is real cluster infrastructure work (likely
+# migrating to the EKS-managed add-on), not something this chart can do -
+# left enabled here so it activates automatically once that's fixed.
+networkPolicy:
+  enabled: true
+  vpcCidr: "10.0.0.0/16"

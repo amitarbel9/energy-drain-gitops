@@ -1,0 +1,78 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+  namespace: {{ .Values.namespace.name }}
+  labels:
+{{ include "energy-drain.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+{{ include "energy-drain.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only nginx may send requests to the backend - this is the network-
+    # layer version of "only backend can access the database": nothing else
+    # in the cluster can even reach the app that holds the DB credential.
+    - from:
+        - podSelector:
+            matchLabels:
+{{ include "energy-drain.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+    # Prometheus needs to reach /metrics on this same port to scrape it
+    # (see templates/servicemonitor.yaml) - without this, default-deny
+    # would silently break monitoring.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+  egress:
+    # DNS - without this, nothing resolves and every other egress rule
+    # below becomes useless (the backend can't even look up the DocumentDB
+    # hostname or Google's API).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if .Values.networkPolicy.vpcCidr }}
+    # DocumentDB - scoped to the cluster's own VPC, not the whole internet,
+    # since the database is never meant to be reached from outside it
+    # (matches the security group rule: "MongoDB from EKS nodes" only).
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.vpcCidr }}
+      ports:
+        - protocol: TCP
+          port: 27017
+    {{- end }}
+    # HTTPS - needed for AWS Secrets Manager and Google's OAuth token
+    # verification API, both of which are reached over the public internet
+    # at IPs that aren't practical to pin down to a fixed list.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

@@ -87,3 +87,9 @@ ingress:
 monitoring:
   serviceMonitor:
     enabled: true
+# NOTE: see values-staging.yaml for why this isn't actually enforced yet -
+# same cluster infrastructure gap applies here (self-managed aws-node,
+# network policy controller disabled, missing RBAC).
+networkPolicy:
+  enabled: true
+  vpcCidr: "10.1.0.0/16"

@@ -1,0 +1,21 @@
+# Baseline for the whole namespace: an empty podSelector matches every pod,
+# and declaring both policyTypes with no rules means nothing gets in or out
+# by default. Anything not explicitly allowed by one of the other
+# NetworkPolicy files (which are additive, not overrides) is denied. This is
+# the network-layer equivalent of the Pod Security Standard labels - a
+# backstop that also covers anything added to this namespace later without
+# its own explicit policy.
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.namespace.name }}
+  labels:
+{{ include "energy-drain.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}

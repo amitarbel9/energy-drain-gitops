@@ -125,3 +125,17 @@ monitoring:
   path: /metrics
   serviceMonitor:
     enabled: true
+# networkPolicy applies default-deny + narrow allow-lists at the pod network
+# level: only nginx may reach backend, only backend may reach the database,
+# and nothing gets DNS or any other traffic unless explicitly listed here.
+# Off by default - local/Kind dev has no real VPC/DocumentDB, and Kind's
+# default CNI (kindnet) doesn't enforce NetworkPolicy at all, so there'd be
+# nothing to verify. Enabled explicitly in values-staging.yaml/
+# values-production.yaml, where the cluster's CNI actually enforces it
+# (confirmed: EKS VPC CNI, NETWORK_POLICY_ENFORCING_MODE=standard).
+networkPolicy:
+  enabled: false
+  # vpcCidr scopes the backend's DocumentDB egress rule to only the
+  # cluster's own VPC, instead of leaving that port open to the internet -
+  # DocumentDB is never meant to be reached from outside the VPC anyway.
+  vpcCidr: ""
