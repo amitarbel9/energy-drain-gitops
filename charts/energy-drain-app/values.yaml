@@ -15,6 +15,11 @@ backend:
     create: false
     name: ""
     annotations: {}
+    # automount is false because the backend never calls the Kubernetes API
+    # itself - MONGO_URL reaches it via env-var injection from the Secrets
+    # Store CSI driver, which requires no API calls from inside the pod.
+    # There's no reason to hand it a token it will never use.
+    automount: false
   # backend.secretsStore configures the AWS Secrets Store CSI driver to fetch
   # the database connection string from AWS Secrets Manager.
   secretsStore:
@@ -65,6 +70,12 @@ backend:
   env: []
 nginx:
   imagePullSecrets: []
+  # nginx.serviceAccount.name defaults to "<release>-nginx" if left empty.
+  # nginx gets its own ServiceAccount (instead of the namespace's "default")
+  # purely so it never shares an identity with anything else that might
+  # later get RBAC permissions bound to "default" in this namespace.
+  serviceAccount:
+    name: ""
   # nginx.name is the base name for nginx Deployment and Service
   name: nginx
   # nginx.replicas is the desired replica count for nginx pods

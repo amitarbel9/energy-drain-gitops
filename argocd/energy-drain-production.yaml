@@ -29,5 +29,11 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    # See energy-drain-staging.yaml for why this is managedNamespaceMetadata
+    # and not a Namespace resource in the chart.
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/warn: restricted
     syncOptions:
       - CreateNamespace=true

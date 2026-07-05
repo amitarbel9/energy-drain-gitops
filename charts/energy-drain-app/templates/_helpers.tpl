@@ -49,3 +49,10 @@ Selector labels used for Deployment and Service matching.
 app.kubernetes.io/name: {{ include "energy-drain.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Name of the nginx ServiceAccount.
+*/}}
+{{- define "energy-drain.nginxServiceAccountName" -}}
+{{- .Values.nginx.serviceAccount.name | default (printf "%s-nginx" (include "energy-drain.fullname" .)) }}
+{{- end }}

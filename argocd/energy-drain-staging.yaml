@@ -20,5 +20,17 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    # managedNamespaceMetadata (not a Namespace resource in the chart) is the
+    # correct way to label a namespace ArgoCD creates via CreateNamespace=true
+    # - a chart-level Namespace manifest conflicts with plain `helm install
+    # --create-namespace` (used by the CI smoke-test), since Helm refuses to
+    # adopt a namespace that already exists without its own ownership
+    # metadata. "enforce: baseline" blocks privileged/host-access pods
+    # cluster-side; "warn: restricted" surfaces (without blocking) anything
+    # not yet fully hardened, e.g. nginx still needing root to bind port 80.
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/warn: restricted
     syncOptions:
       - CreateNamespace=true

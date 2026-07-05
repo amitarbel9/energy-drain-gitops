@@ -19,14 +19,33 @@ spec:
 {{ include "energy-drain.labels" . | nindent 8 }}
         app.kubernetes.io/component: nginx
     spec:
+      serviceAccountName: {{ include "energy-drain.nginxServiceAccountName" . }}
       {{- with .Values.nginx.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ .Values.nginx.name }}
           image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
           imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          # nginx's master process needs root today to bind port 80 (a
+          # privileged port) - runAsNonRoot would crash-loop it without a
+          # Dockerfile change in the (separate) nginx image repo. Instead,
+          # every other Linux capability is dropped and only the ones the
+          # entrypoint actually uses are kept: NET_BIND_SERVICE (port 80),
+          # and CHOWN/SETUID/SETGID (its entrypoint chowns the cache dirs to
+          # the unprivileged "nginx" user, then drops to it for workers -
+          # verified directly: dropping these caused
+          # `chown("/var/cache/nginx/client_temp") failed: Operation not
+          # permitted` on startup).
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE", "CHOWN", "SETUID", "SETGID"]
           ports:
             - containerPort: {{ .Values.nginx.port }}
           readinessProbe:

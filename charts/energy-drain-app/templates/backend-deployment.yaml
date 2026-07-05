@@ -26,10 +26,25 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # runAsUser is forced explicitly (not just runAsNonRoot) because
+      # different image tags actually differ here - the currently-deployed
+      # staging tag runs as uid=100 by default, but the chart's own base
+      # values.yaml tag defaults to root. Forcing the known-good uid means
+      # this doesn't silently depend on whichever tag happens to be set.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ .Values.backend.name }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: {{ .Values.backend.port }}
           env:
@@ -82,8 +97,10 @@ spec:
             limits:
               memory: "{{ .Values.backend.resources.limits.memory }}"
               cpu: "{{ .Values.backend.resources.limits.cpu }}"
-          {{- if or .Values.backend.secretsStore.enabled .Values.backend.docdbCa.enabled }}
           volumeMounts:
+            # Scratch space for a process that now has readOnlyRootFilesystem.
+            - name: tmp
+              mountPath: /tmp
             {{- if .Values.backend.secretsStore.enabled }}
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
@@ -95,6 +112,8 @@ spec:
               readOnly: true
             {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         {{- if .Values.backend.secretsStore.enabled }}
         - name: secrets-store
           csi:
@@ -108,4 +127,3 @@ spec:
           configMap:
             name: {{ .Values.backend.docdbCa.configMapName }}
         {{- end }}
-          {{- end }}
