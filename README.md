@@ -133,14 +133,6 @@ Metrics tracked:
 - Number of HTTP requests
 - Number of energy-drain entries created
 
-## Known Gap: NetworkPolicy Is Not Yet Enforced
-
-The chart ships `NetworkPolicy` objects (default-deny + narrow allow-lists: only nginx may reach the backend, only the backend may reach DocumentDB) - they render, lint, and apply cleanly, but **are not actually enforced yet** on either cluster as of 2026-07-05.
-
-Root cause: `aws-node` (the VPC CNI) is installed via a bare Helm chart here, not the EKS-managed `vpc-cni` add-on. Its ConfigMap has `enable-network-policy-controller: "false"`, and its ClusterRole is missing the RBAC to watch `networking.k8s.io/networkpolicies` - confirmed live by applying a test policy and observing that traffic was not blocked and zero `PolicyEndpoint` objects were ever created.
-
-The real fix is cluster infrastructure work (most likely migrating to the EKS-managed `vpc-cni` add-on, which AWS's own docs frame as the supported path for this feature) - out of scope for this repo, and risky enough (affects every workload's networking, not just this app) that it shouldn't be patched ad hoc without dedicated testing. The chart's policies are left enabled so they activate automatically the moment that infrastructure gap is closed.
-
 ## Staging Database Secret Contract
 
 The staging backend's `MONGO_URL` lives in AWS Secrets Manager (`staging/energy-drain/mongo-url`, region `ap-south-1`) and is synced into the cluster by the Secrets Store CSI driver. Two rules keep it from breaking:
