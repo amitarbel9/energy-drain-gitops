@@ -57,14 +57,19 @@ jobs:
           echo "promoting: $SHA"
 
       - name: Checkout (full history, push-capable token)
+        # zizmor: ignore[artipacked] this job's whole job is to `git push`
+        # the checked-out credential to the production branch further down -
+        # persist-credentials: false would break that push, since it relies
+        # on the ambient credential checkout leaves in git config.
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
       - name: Sync image tags and fast-forward production branch
+        env:
+          TESTED_SHA: ${{ steps.resolve.outputs.sha }}
         run: |
-          TESTED_SHA="${{ steps.resolve.outputs.sha }}"
           echo "production currently at: $(git rev-parse origin/production)"
           echo "promoting tested SHA: $TESTED_SHA"
 

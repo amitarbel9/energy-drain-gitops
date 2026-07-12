@@ -69,6 +69,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -173,6 +177,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -285,6 +293,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Download rendered manifests
         uses: actions/download-artifact@v4
@@ -399,6 +411,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Install yamllint
         run: |
@@ -512,6 +528,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Install Kind
         uses: helm/kind-action@v1.10.0
@@ -649,6 +669,109 @@ jobs:
           from: GitOps CI
 
   # ---------------------------------------------------------------------------
+  # Security scan — secrets (gitleaks)
+  #
+  # Scans the full git history on every push for accidentally-committed
+  # secrets (API keys, passwords, tokens). No `needs:` - doesn't depend on
+  # the chart being valid, only on the repo's contents. This repo has
+  # already had to scrub leaked credentials from its history once - this
+  # is what catches it before that ever needs to happen again.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Security — secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Security scan — IaC (Checkov)
+  #
+  # Scans the Helm chart's rendered Kubernetes manifests for
+  # misconfigurations (containers running as root, missing resource limits,
+  # overly permissive RBAC, etc). No `needs:` - static config scan, doesn't
+  # require the chart to be templated first.
+  #
+  # Six checks are explicitly skipped - each is a deliberate, already-tested
+  # tradeoff from earlier hardening work, not an oversight:
+  #   CKV_K8S_23/22/25 - nginx must run as root and keep CHOWN/SETUID/SETGID/
+  #     NET_BIND_SERVICE to bind port 80 and drop to an unprivileged worker;
+  #     its filesystem can't be read-only because it writes cache dirs at
+  #     startup. Verified live: dropping these crash-looped it.
+  #   CKV_K8S_40 - backend/nginx are pinned to their actual image's built-in
+  #     UID (100), deliberately, instead of an arbitrary high UID that may
+  #     not exist in the image's /etc/passwd.
+  #   CKV_K8S_15 - imagePullPolicy Always isn't needed here: staging/prod use
+  #     unique per-commit-SHA tags, so there's no mutable-tag staleness risk
+  #     for this check to protect against.
+  #   CKV_K8S_43 - image digests instead of tags would need a bigger change
+  #     to the tag-based promotion flow across all three repos - a real
+  #     future improvement, not something to silently change here.
+  # ---------------------------------------------------------------------------
+  iac-scan:
+    name: Security scan (Checkov)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12.1347.0
+        with:
+          directory: charts/energy-drain-app
+          framework: helm
+          skip_check: CKV_K8S_23,CKV_K8S_22,CKV_K8S_25,CKV_K8S_40,CKV_K8S_15,CKV_K8S_43
+          soft_fail: false
+
+  # ---------------------------------------------------------------------------
+  # Security scan — GitHub Actions workflows (zizmor)
+  #
+  # Statically audits every workflow in this repo for CI/CD-specific
+  # issues: secrets handed to third-party actions, over-broad permissions,
+  # script injection via untrusted context values (e.g. ${{ github.event.* }}
+  # interpolated straight into a shell step). No `needs:` - doesn't depend
+  # on anything else in the pipeline.
+  #
+  # `unpinned-uses` is explicitly disabled via .github/zizmor.yml - see that
+  # file for why. Every other rule stays active and blocking.
+  # ---------------------------------------------------------------------------
+  workflow-scan:
+    name: Security — GitHub Actions scan (zizmor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
+
+      - name: Run zizmor
+        run: |
+          pip install uv
+          uvx zizmor@1.26.1 --config .github/zizmor.yml .github/workflows/
+
+  # ---------------------------------------------------------------------------
   # Job 6 — Final Pipeline Summary
   # ---------------------------------------------------------------------------
   notify:
@@ -663,8 +786,30 @@ jobs:
       - kubeconform
       - yamllint
       - smoke-test
+      - secret-scan
+      - iac-scan
+      - workflow-scan
 
     steps:
+      # Computed once here (instead of repeating the same 8-job boolean
+      # expression in the subject/html_body below) so those lines stay
+      # under yamllint's line-length limit.
+      - name: Check overall pipeline result
+        id: check
+        run: |
+          if [ "${{ needs.helm-lint.result }}" = "success" ] &&
+             [ "${{ needs.helm-template.result }}" = "success" ] &&
+             [ "${{ needs.kubeconform.result }}" = "success" ] &&
+             [ "${{ needs.yamllint.result }}" = "success" ] &&
+             [ "${{ needs.smoke-test.result }}" = "success" ] &&
+             [ "${{ needs.secret-scan.result }}" = "success" ] &&
+             [ "${{ needs.iac-scan.result }}" = "success" ] &&
+             [ "${{ needs.workflow-scan.result }}" = "success" ]; then
+            echo "all_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "all_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Send final pipeline summary email
         uses: dawidd6/action-send-mail@v3
         with:
@@ -677,17 +822,7 @@ jobs:
           subject: |
             [${{ github.repository }}]
             GitOps Pipeline —
-            ${{
-              (
-                needs.helm-lint.result == 'success' &&
-                needs.helm-template.result == 'success' &&
-                needs.kubeconform.result == 'success' &&
-                needs.yamllint.result == 'success' &&
-                needs.smoke-test.result == 'success'
-              )
-              && '✅ Passed'
-              || '❌ Failed'
-            }}
+            ${{ steps.check.outputs.all_passed == 'true' && '✅ Passed' || '❌ Failed' }}
 
           html_body: |
             <!DOCTYPE html>
@@ -699,9 +834,9 @@ jobs:
                   <td align="center">
                     <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e0e0e0;">
                       <tr>
-                        <td style="background:${{ (needs.helm-lint.result == 'success' && needs.helm-template.result == 'success' && needs.kubeconform.result == 'success' && needs.yamllint.result == 'success' && needs.smoke-test.result == 'success') && '#1a7a1a' || '#8b0000' }};padding:28px 36px;">
+                        <td style="background:${{ steps.check.outputs.all_passed == 'true' && '#1a7a1a' || '#8b0000' }};padding:28px 36px;">
                           <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">
-                            ${{ (needs.helm-lint.result == 'success' && needs.helm-template.result == 'success' && needs.kubeconform.result == 'success' && needs.yamllint.result == 'success' && needs.smoke-test.result == 'success') && '✅ Pipeline Passed' || '❌ Pipeline Failed' }}
+                            ${{ steps.check.outputs.all_passed == 'true' && '✅ Pipeline Passed' || '❌ Pipeline Failed' }}
                           </h1>
                           <p style="margin:6px 0 0 0;font-size:13px;color:rgba(255,255,255,0.75);">
                             GitOps CI Pipeline — Full Summary
@@ -737,8 +872,20 @@ jobs:
                               </td>
                             </tr>
                             <tr style="background:#fafafa;">
-                              <td style="padding:12px 20px;font-size:13px;color:#333;">🌐 Smoke Tests — Application Validation</td>
-                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.smoke-test.result == 'success' && '#2e7d32' || '#b71c1c' }};">${{ needs.smoke-test.result == 'success' && '✅ PASSED' || needs.smoke-test.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🌐 Smoke Tests — Application Validation</td>
+                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.smoke-test.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">${{ needs.smoke-test.result == 'success' && '✅ PASSED' || needs.smoke-test.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
+                            </tr>
+                            <tr style="background:#ffffff;">
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🔐 Secret Scan — Gitleaks</td>
+                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.secret-scan.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">${{ needs.secret-scan.result == 'success' && '✅ PASSED' || needs.secret-scan.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
+                            </tr>
+                            <tr style="background:#fafafa;">
+                              <td style="padding:12px 20px;font-size:13px;color:#333;border-bottom:1px solid #eeeeee;">🛡️ IaC Scan — Checkov</td>
+                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.iac-scan.result == 'success' && '#2e7d32' || '#b71c1c' }};border-bottom:1px solid #eeeeee;">${{ needs.iac-scan.result == 'success' && '✅ PASSED' || needs.iac-scan.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
+                            </tr>
+                            <tr style="background:#ffffff;">
+                              <td style="padding:12px 20px;font-size:13px;color:#333;">⚙️ Workflow Scan — Zizmor</td>
+                              <td align="right" style="padding:12px 20px;font-size:13px;font-weight:600;color:${{ needs.workflow-scan.result == 'success' && '#2e7d32' || '#b71c1c' }};">${{ needs.workflow-scan.result == 'success' && '✅ PASSED' || needs.workflow-scan.result == 'skipped' && '⏭️ SKIPPED' || '❌ FAILED' }}</td>
                             </tr>
                           </table>
                         </td>
@@ -812,9 +959,16 @@ jobs:
       - kubeconform
       - yamllint
       - smoke-test
+      - secret-scan
+      - iac-scan
+      - workflow-scan
 
     steps:
       - name: Checkout repository
+        # zizmor: ignore[artipacked] this job's whole job is to `git push`
+        # the checked-out credential to the staging branch further down -
+        # persist-credentials: false would break that push, since it relies
+        # on the ambient credential checkout leaves in git config.
         uses: actions/checkout@v4
         with:
           fetch-depth: 0

@@ -1,0 +1,28 @@
+# zizmor configuration — https://docs.zizmor.sh/configuration/
+#
+# `unpinned-uses` flags every `uses:` pinned to a tag (e.g. @v4) instead of a
+# commit SHA. Tags can be moved by the action's maintainer (or an attacker who
+# compromises their account) to point at different code after the fact.
+#
+# Every action in these workflows is deliberately tag-pinned (@v4, @v1.2.1,
+# etc.) rather than SHA-pinned, accepting that supply-chain risk as a
+# tradeoff for readability and easier version bumps - the same conscious
+# choice energy-drain-app made for the same reason. Every other zizmor rule
+# (secrets handling, permission scope, script injection via untrusted
+# context values, etc.) stays active and blocking.
+rules:
+  unpinned-uses:
+    disable: true
+
+  # `dangerous-triggers` flags gitops-cd.yml's use of `workflow_run` as
+  # "almost always insecure" - the general risk is a malicious pull_request
+  # getting built by a workflow_run-chained workflow that runs with the
+  # target repo's full secrets/permissions. That doesn't apply here:
+  # gitops-ci.yml (the workflow gitops-cd.yml runs after) only triggers on
+  # `push` to main, which already requires existing write access to this
+  # repo - there's no pull_request entry point for an untrusted contributor
+  # to reach it through. Redesigning the CD trigger model to avoid this
+  # generic warning isn't worth it for a risk that isn't actually present
+  # in this repo's setup.
+  dangerous-triggers:
+    disable: true

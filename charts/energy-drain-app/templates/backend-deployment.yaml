@@ -26,6 +26,11 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Set here too, not just on the ServiceAccount object itself - both
+      # achieve the same result today, but this is the belt-and-suspenders
+      # version that stays correct even if this Deployment is ever pointed
+      # at a different ServiceAccount later.
+      automountServiceAccountToken: false
       # runAsUser is forced explicitly (not just runAsNonRoot) because
       # different image tags actually differ here - the currently-deployed
       # staging tag runs as uid=100 by default, but the chart's own base

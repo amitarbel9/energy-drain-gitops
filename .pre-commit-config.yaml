@@ -1,0 +1,15 @@
+# ---------------------------------------------------------------------------
+# Pre-commit hooks
+#
+# Run `pre-commit install` once locally to activate these on every commit.
+#
+# - gitleaks: blocks commits that contain secrets (API keys, passwords,
+#   tokens) before they ever reach git history. Catching this locally is far
+#   cheaper than scrubbing history after a push - this repo has done that
+#   scrub once already, the hard way.
+# ---------------------------------------------------------------------------
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

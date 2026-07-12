@@ -34,7 +34,10 @@ on:
 
 permissions:
   contents: read
-  id-token: write # for AWS OIDC in cluster-dependent jobs
+  # id-token: write is granted per-job below (setup, monitoring-checks,
+  # rollback-drill only) instead of here - those are the only jobs that
+  # actually authenticate to AWS via OIDC, and this is what a security scan
+  # (zizmor) flagged as unnecessarily broad when set workflow-wide.
 
 env:
   BASE_URL: https://staging.volt-app.dev
@@ -49,6 +52,8 @@ jobs:
   setup:
     name: Plan run & wait for ArgoCD
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # for AWS OIDC (sync-wait step assumes AWS_OIDC_ROLE_ARN)
     # Deploy path only when CI succeeded; schedule/dispatch always run.
     if: >-
       github.event_name != 'workflow_run' ||
@@ -491,6 +496,8 @@ jobs:
   monitoring-checks:
     name: Monitoring checks
     needs: [setup, smoke-tests]
+    permissions:
+      id-token: write # for AWS OIDC (configure-aws-credentials step)
     if: >-
       needs.setup.outputs.deploy_tests == 'true' &&
       needs.setup.outputs.cluster_access == 'true'
@@ -627,6 +634,8 @@ jobs:
   rollback-drill:
     name: Rollback drill (every 5th deploy)
     needs: [setup, smoke-tests, api-acceptance]
+    permissions:
+      id-token: write # for AWS OIDC (configure-aws-credentials step)
     if: >-
       needs.setup.outputs.rollback_drill == 'true' &&
       needs.setup.outputs.cluster_access == 'true'
@@ -656,34 +665,45 @@ jobs:
           echo "current image: $IMAGE"
 
       - name: Inject drift (set a known-bad image tag)
+        env:
+          DEPLOY: ${{ steps.before.outputs.deploy }}
+          IMAGE: ${{ steps.before.outputs.image }}
         run: |
-          kubectl set image -n "$APP_NAMESPACE" "${{ steps.before.outputs.deploy }}" \
-            backend="${{ steps.before.outputs.image }}-rollback-drill-bad"
+          kubectl set image -n "$APP_NAMESPACE" "$DEPLOY" \
+            backend="${IMAGE}-rollback-drill-bad"
 
       - name: Verify ArgoCD selfHeal reverts the drift
+        env:
+          DEPLOY: ${{ steps.before.outputs.deploy }}
+          IMAGE: ${{ steps.before.outputs.image }}
         run: |
           for i in $(seq 1 60); do
-            CURRENT=$(kubectl get "${{ steps.before.outputs.deploy }}" -n "$APP_NAMESPACE" \
+            CURRENT=$(kubectl get "$DEPLOY" -n "$APP_NAMESPACE" \
               -o jsonpath='{.spec.template.spec.containers[0].image}')
-            if [ "$CURRENT" = "${{ steps.before.outputs.image }}" ]; then
+            if [ "$CURRENT" = "$IMAGE" ]; then
               echo "selfHeal restored the image after ~$((i*10))s"
               exit 0
             fi
             sleep 10
           done
           echo "::error::ArgoCD did not revert the drift within 10 minutes"
-          echo "::error::manual fix: kubectl set image -n $APP_NAMESPACE ${{ steps.before.outputs.deploy }} backend=${{ steps.before.outputs.image }}"
+          echo "::error::manual fix: kubectl set image -n $APP_NAMESPACE $DEPLOY backend=$IMAGE"
           exit 1
 
       - name: Restore drift manually if the drill failed
         if: failure()
+        env:
+          DEPLOY: ${{ steps.before.outputs.deploy }}
+          IMAGE: ${{ steps.before.outputs.image }}
         run: |
-          kubectl set image -n "$APP_NAMESPACE" "${{ steps.before.outputs.deploy }}" \
-            backend="${{ steps.before.outputs.image }}" || true
+          kubectl set image -n "$APP_NAMESPACE" "$DEPLOY" \
+            backend="$IMAGE" || true
 
       - name: App is healthy after the drill
+        env:
+          DEPLOY: ${{ steps.before.outputs.deploy }}
         run: |
-          kubectl rollout status -n "$APP_NAMESPACE" "${{ steps.before.outputs.deploy }}" --timeout=180s
+          kubectl rollout status -n "$APP_NAMESPACE" "$DEPLOY" --timeout=180s
           CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE_URL/api/health")
           [ "$CODE" = "200" ] || { echo "::error::health check failed after drill: $CODE"; exit 1; }
 
@@ -778,6 +798,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # This job never pushes with the checked-out credential - no
+          # reason for it to persist in git config for the rest of the job.
+          persist-credentials: false
 
       - name: Install k6
         uses: grafana/setup-k6-action@v1.2.1
@@ -888,6 +912,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Report
+        env:
+          CLUSTER_ACCESS: ${{ needs.setup.outputs.cluster_access }}
         run: |
           {
             echo "## CD test results"
@@ -900,7 +926,7 @@ jobs:
             echo "| Rollback drill | ${{ needs.rollback-drill.result }} |"
             echo "| Performance | ${{ needs.performance-tests.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ needs.setup.outputs.cluster_access }}" != "true" ]; then
+          if [ "$CLUSTER_ACCESS" != "true" ]; then
             echo "::notice::monitoring & rollback-drill are skipped until the AWS_OIDC_ROLE_ARN secret is configured (IAM role with GitHub OIDC trust for this repo + EKS access)"
           fi
           if [ "${{ needs.smoke-tests.result }}" = "success" ] && \

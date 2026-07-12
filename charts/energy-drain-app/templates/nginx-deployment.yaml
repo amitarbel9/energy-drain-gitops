@@ -24,6 +24,11 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Set here too, not just on the ServiceAccount object itself - both
+      # achieve the same result today, but this is the belt-and-suspenders
+      # version that stays correct even if this Deployment is ever pointed
+      # at a different ServiceAccount later.
+      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault

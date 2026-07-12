@@ -47,7 +47,7 @@ On production only, **external-dns** runs as a separate ArgoCD Application and s
 Three workflows, each with a distinct role:
 
 ### 1. CI Pipeline (`gitops-ci.yml`)
-Triggers on every push to `main`. Jobs run in sequence:
+Triggers on every push to `main`. Jobs run in sequence, plus three security scans that run independently alongside them:
 
 1. **helm-lint** — validates chart syntax
 2. **helm-template** — renders manifests and uploads as artifact
@@ -56,6 +56,12 @@ Triggers on every push to `main`. Jobs run in sequence:
 5. **smoke-test** — installs the chart into a temporary Kind cluster and verifies pods, services, and ingress become healthy
 6. **notify** — sends a full pipeline summary email
 7. **promote** — on success only, fast-forwards the `staging` branch to `main`; the staging ArgoCD instance picks this up and syncs
+
+Security scans (all block `promote` on failure, same as the jobs above):
+
+- **secret-scan** — [gitleaks](https://github.com/gitleaks/gitleaks), scans the full git history on every push for accidentally-committed secrets. Also runs as a `pre-commit` hook (`pre-commit install` once locally) so this is caught before it's even committed, not just in CI.
+- **iac-scan** — [Checkov](https://www.checkov.io/), scans the Helm chart's rendered Kubernetes manifests for misconfigurations. Six checks are explicitly skipped with reasoning in the workflow file - each is a deliberate, already-tested tradeoff (e.g. nginx must run as root to bind port 80), not an oversight.
+- **workflow-scan** — [zizmor](https://docs.zizmor.sh/), statically audits these three workflow files themselves for CI/CD-specific issues (script injection via untrusted context values, overly broad permissions, credential handling). Config and reasoning for anything disabled: `.github/zizmor.yml`.
 
 ### 2. CD Tests (`gitops-cd.yml`)
 Triggers ~2 minutes after the CI pipeline succeeds on `main` (allowing ArgoCD to sync staging). Tests the **live staging environment**, covering things CI cannot see (real DocumentDB TLS, Secrets Manager, ALB, DNS, OAuth config).
