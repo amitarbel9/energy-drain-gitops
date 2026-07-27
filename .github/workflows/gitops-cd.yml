@@ -63,8 +63,6 @@ jobs:
       performance: ${{ steps.plan.outputs.performance }}
       rollback_drill: ${{ steps.plan.outputs.rollback_drill }}
       cluster_access: ${{ steps.plan.outputs.cluster_access }}
-      runner_sg_id: ${{ steps.widen.outputs.sg_id }}
-      runner_ip: ${{ steps.widen.outputs.runner_ip }}
     steps:
       - name: Decide which suites run
         id: plan
@@ -94,23 +92,15 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "deploy_tests=$DEPLOY performance=$PERF rollback_drill=$DRILL cluster_access=$HAS_AWS_ROLE"
 
-      # Broadened beyond just workflow_run: the security-group-whitelist step
-      # below needs cluster access on every trigger type that hits the
-      # public endpoint (including the weekly `schedule` performance run),
-      # not only the CI-triggered path.
       - name: Configure AWS credentials (OIDC)
-        if: >-
-          steps.plan.outputs.cluster_access == 'true' &&
-          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
+        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up kubeconfig
-        if: >-
-          steps.plan.outputs.cluster_access == 'true' &&
-          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
+        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Wait for ArgoCD to sync the new revision
@@ -126,85 +116,6 @@ jobs:
             echo "No cluster access - sleeping 120s as fallback"
             sleep 120
           fi
-
-      # Staging's ALB security group only allows inbound from one known IP
-      # (alb.ingress.kubernetes.io/inbound-cidrs in values-staging.yaml) -
-      # GitHub-hosted runners use a different, rotating IP on every run, so
-      # every job below that hits $BASE_URL over the public internet would
-      # otherwise get a connection-level failure (curl "000", no TLS
-      # handshake at all), not an application error. This temporarily adds
-      # just this run's runner IP to that same security group so the tests
-      # can reach it - "summary" (which always runs last) removes it again.
-      #
-      # This is safe from the AWS Load Balancer Controller reconciling it
-      # away mid-run: its --sync-period is 10h by default, and it only acts
-      # on this Ingress again if the Ingress itself changes - confirmed
-      # directly against the controller's own --help output before relying
-      # on it here, not assumed.
-      #
-      # The security group is found via the LIVE Ingress object's actual
-      # ALB (kubectl -> hostname -> that exact ALB's SGs), not a tag search
-      # across the account. A tag search (elbv2.k8s.aws/cluster +
-      # ManagedLBSecurityGroup) isn't unique enough here: this account has
-      # several orphaned ALBs from earlier environment rebuilds this
-      # session, some still carrying the same cluster tag, and a past run
-      # of this exact step non-deterministically picked one of those stale
-      # SGs instead of the live one - confirmed via CloudTrail (it
-      # authorized the runner IP on a security group attached to a
-      # different, orphaned load balancer entirely). Anchoring on the
-      # Ingress's own live status.loadBalancer hostname can't have that
-      # ambiguity - it's the one ALB actually serving traffic right now,
-      # not "any resource that happens to share this cluster's tag".
-      - name: Allow this runner's IP through the staging ALB
-        id: widen
-        if: >-
-          steps.plan.outputs.cluster_access == 'true' &&
-          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
-        run: |
-          RUNNER_IP=$(curl -s --max-time 10 https://checkip.amazonaws.com)
-          if [ -z "$RUNNER_IP" ]; then
-            echo "::error::could not determine this runner's public IP"
-            exit 1
-          fi
-
-          ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
-            -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
-          if [ -z "$ALB_DNS" ]; then
-            echo "::error::could not read the staging Ingress's live ALB hostname"
-            exit 1
-          fi
-          echo "live ALB for this Ingress: $ALB_DNS"
-
-          CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
-            --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
-          if [ -z "$CANDIDATE_SGS" ]; then
-            echo "::error::could not find a load balancer matching DNS name $ALB_DNS"
-            exit 1
-          fi
-
-          # This ALB has two security groups (a managed frontend one that
-          # carries the inbound-cidrs rules, and a shared backend one for
-          # ALB-to-pod traffic) - narrow to the specific one by resource
-          # tag, scoped to just these already-confirmed-live candidates.
-          SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
-            --group-ids $CANDIDATE_SGS \
-            --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
-            --query 'SecurityGroups[0].GroupId' --output text)
-          if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
-            echo "::error::could not identify the managed security group among: $CANDIDATE_SGS"
-            exit 1
-          fi
-
-          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
-
-          aws ec2 authorize-security-group-ingress --region "$AWS_REGION" \
-            --group-id "$SG_ID" --protocol tcp --port 443 \
-            --cidr "${RUNNER_IP}/32" \
-            --tag-specifications "ResourceType=security-group-rule,Tags=[{Key=purpose,Value=gitops-cd-temporary-ci-access},{Key=run_id,Value=${{ github.run_id }}}]" \
-          || echo "::notice::rule for $RUNNER_IP/32 may already exist - continuing"
-
-          echo "temporarily allowed $RUNNER_IP/32 on port 443 in $SG_ID for this run"
 
   # ---------------------------------------------------------------- smoke --
   smoke-tests:
@@ -241,9 +152,18 @@ jobs:
           if ! [[ "$RUNNER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "::warning::could not determine a valid runner IP ($RUNNER_IP) - skipping ALB authorization"
           else
-            SG_ID=$(aws ec2 describe-security-groups \
-              --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              --query 'SecurityGroups[0].GroupId' --output text)
+            aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION" > /dev/null
+            ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+              -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            SG_ID=""
+            if [ -n "$ALB_DNS" ]; then
+              CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+              SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+                --group-ids $CANDIDATE_SGS \
+                --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+                --query 'SecurityGroups[0].GroupId' --output text)
+            fi
             if [[ "$SG_ID" =~ ^sg-[a-f0-9]+$ ]]; then
               echo "SG_ID=$SG_ID" >> "$GITHUB_ENV"
               echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
@@ -411,9 +331,18 @@ jobs:
           if ! [[ "$RUNNER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "::warning::could not determine a valid runner IP ($RUNNER_IP) - skipping ALB authorization"
           else
-            SG_ID=$(aws ec2 describe-security-groups \
-              --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              --query 'SecurityGroups[0].GroupId' --output text)
+            aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION" > /dev/null
+            ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+              -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            SG_ID=""
+            if [ -n "$ALB_DNS" ]; then
+              CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+              SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+                --group-ids $CANDIDATE_SGS \
+                --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+                --query 'SecurityGroups[0].GroupId' --output text)
+            fi
             if [[ "$SG_ID" =~ ^sg-[a-f0-9]+$ ]]; then
               echo "SG_ID=$SG_ID" >> "$GITHUB_ENV"
               echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
@@ -582,9 +511,18 @@ jobs:
           if ! [[ "$RUNNER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "::warning::could not determine a valid runner IP ($RUNNER_IP) - skipping ALB authorization"
           else
-            SG_ID=$(aws ec2 describe-security-groups \
-              --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              --query 'SecurityGroups[0].GroupId' --output text)
+            aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION" > /dev/null
+            ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+              -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            SG_ID=""
+            if [ -n "$ALB_DNS" ]; then
+              CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+              SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+                --group-ids $CANDIDATE_SGS \
+                --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+                --query 'SecurityGroups[0].GroupId' --output text)
+            fi
             if [[ "$SG_ID" =~ ^sg-[a-f0-9]+$ ]]; then
               echo "SG_ID=$SG_ID" >> "$GITHUB_ENV"
               echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
@@ -882,9 +820,18 @@ jobs:
           if ! [[ "$RUNNER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "::warning::could not determine a valid runner IP ($RUNNER_IP) - skipping ALB authorization"
           else
-            SG_ID=$(aws ec2 describe-security-groups \
-              --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              --query 'SecurityGroups[0].GroupId' --output text)
+            aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION" > /dev/null
+            ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+              -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            SG_ID=""
+            if [ -n "$ALB_DNS" ]; then
+              CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+              SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+                --group-ids $CANDIDATE_SGS \
+                --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+                --query 'SecurityGroups[0].GroupId' --output text)
+            fi
             if [[ "$SG_ID" =~ ^sg-[a-f0-9]+$ ]]; then
               echo "SG_ID=$SG_ID" >> "$GITHUB_ENV"
               echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
@@ -1073,9 +1020,18 @@ jobs:
           if ! [[ "$RUNNER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "::warning::could not determine a valid runner IP ($RUNNER_IP) - skipping ALB authorization"
           else
-            SG_ID=$(aws ec2 describe-security-groups \
-              --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              --query 'SecurityGroups[0].GroupId' --output text)
+            aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION" > /dev/null
+            ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+              -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+            SG_ID=""
+            if [ -n "$ALB_DNS" ]; then
+              CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+              SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+                --group-ids $CANDIDATE_SGS \
+                --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+                --query 'SecurityGroups[0].GroupId' --output text)
+            fi
             if [[ "$SG_ID" =~ ^sg-[a-f0-9]+$ ]]; then
               echo "SG_ID=$SG_ID" >> "$GITHUB_ENV"
               echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
@@ -1203,32 +1159,7 @@ jobs:
       - performance-tests
     if: always() && needs.setup.result == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # for AWS OIDC (revoke-the-temporary-SG-rule step)
     steps:
-      # Always runs, even if every test job failed - this is a security
-      # rule, not a report, and must not be left open. Tolerant of the
-      # rule already being gone (e.g. setup itself failed before adding
-      # it) - a missing rule to revoke isn't a failure worth blocking on.
-      - name: Configure AWS credentials (for security group cleanup)
-        if: needs.setup.outputs.runner_sg_id != ''
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Remove this run's temporary ALB security group access
-        if: needs.setup.outputs.runner_sg_id != ''
-        env:
-          SG_ID: ${{ needs.setup.outputs.runner_sg_id }}
-          RUNNER_IP: ${{ needs.setup.outputs.runner_ip }}
-        run: |
-          aws ec2 revoke-security-group-ingress --region "$AWS_REGION" \
-            --group-id "$SG_ID" --protocol tcp --port 443 \
-            --cidr "${RUNNER_IP}/32" \
-          || echo "::notice::rule for $RUNNER_IP/32 was already gone - nothing to clean up"
-          echo "revoked temporary access for $RUNNER_IP/32 from $SG_ID"
-
       - name: Report
         env:
           CLUSTER_ACCESS: ${{ needs.setup.outputs.cluster_access }}
