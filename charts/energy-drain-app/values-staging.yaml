@@ -71,6 +71,13 @@ ingress:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/5d642bf1-b885-4c0e-ba9d-9329d6468a8d
+    # Staging is restricted to a single known IP - unlike production, there's
+    # no reason for the public internet to reach it, and it's otherwise a
+    # 24/7 target for scanners/bots (the hostname is discoverable via public
+    # Certificate Transparency logs regardless of whether it's linked
+    # anywhere). Update this if the IP changes - most ISP connections are
+    # dynamic, so this will need revisiting if staging access breaks.
+    alb.ingress.kubernetes.io/inbound-cidrs: 176.228.212.1/32
   hosts:
     - host: staging.volt-app.dev
       paths:
