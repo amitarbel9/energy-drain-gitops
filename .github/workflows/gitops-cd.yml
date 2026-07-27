@@ -94,15 +94,23 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "deploy_tests=$DEPLOY performance=$PERF rollback_drill=$DRILL cluster_access=$HAS_AWS_ROLE"
 
-      - name: Configure AWS credentials for sync wait (OIDC)
-        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
+      # Broadened beyond just workflow_run: the security-group-whitelist step
+      # below needs cluster access on every trigger type that hits the
+      # public endpoint (including the weekly `schedule` performance run),
+      # not only the CI-triggered path.
+      - name: Configure AWS credentials (OIDC)
+        if: >-
+          steps.plan.outputs.cluster_access == 'true' &&
+          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set up kubeconfig for sync wait
-        if: github.event_name == 'workflow_run' && steps.plan.outputs.cluster_access == 'true'
+      - name: Set up kubeconfig
+        if: >-
+          steps.plan.outputs.cluster_access == 'true' &&
+          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Wait for ArgoCD to sync the new revision
@@ -133,15 +141,20 @@ jobs:
       # on this Ingress again if the Ingress itself changes - confirmed
       # directly against the controller's own --help output before relying
       # on it here, not assumed.
-      - name: Configure AWS credentials (for security group whitelist)
-        if: >-
-          steps.plan.outputs.cluster_access == 'true' &&
-          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
+      #
+      # The security group is found via the LIVE Ingress object's actual
+      # ALB (kubectl -> hostname -> that exact ALB's SGs), not a tag search
+      # across the account. A tag search (elbv2.k8s.aws/cluster +
+      # ManagedLBSecurityGroup) isn't unique enough here: this account has
+      # several orphaned ALBs from earlier environment rebuilds this
+      # session, some still carrying the same cluster tag, and a past run
+      # of this exact step non-deterministically picked one of those stale
+      # SGs instead of the live one - confirmed via CloudTrail (it
+      # authorized the runner IP on a security group attached to a
+      # different, orphaned load balancer entirely). Anchoring on the
+      # Ingress's own live status.loadBalancer hostname can't have that
+      # ambiguity - it's the one ALB actually serving traffic right now,
+      # not "any resource that happens to share this cluster's tag".
       - name: Allow this runner's IP through the staging ALB
         id: widen
         if: >-
@@ -154,13 +167,31 @@ jobs:
             exit 1
           fi
 
+          ALB_DNS=$(kubectl get ingress -n "$APP_NAMESPACE" \
+            -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
+          if [ -z "$ALB_DNS" ]; then
+            echo "::error::could not read the staging Ingress's live ALB hostname"
+            exit 1
+          fi
+          echo "live ALB for this Ingress: $ALB_DNS"
+
+          CANDIDATE_SGS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+            --query "LoadBalancers[?DNSName=='${ALB_DNS}'].SecurityGroups[]" --output text)
+          if [ -z "$CANDIDATE_SGS" ]; then
+            echo "::error::could not find a load balancer matching DNS name $ALB_DNS"
+            exit 1
+          fi
+
+          # This ALB has two security groups (a managed frontend one that
+          # carries the inbound-cidrs rules, and a shared backend one for
+          # ALB-to-pod traffic) - narrow to the specific one by resource
+          # tag, scoped to just these already-confirmed-live candidates.
           SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
-            --filters \
-              "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
-              "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+            --group-ids $CANDIDATE_SGS \
+            --filters "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
             --query 'SecurityGroups[0].GroupId' --output text)
           if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
-            echo "::error::could not find the staging ALB's managed security group"
+            echo "::error::could not identify the managed security group among: $CANDIDATE_SGS"
             exit 1
           fi
 
