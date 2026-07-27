@@ -25,7 +25,7 @@ argocd/                        ArgoCD Application manifests (bootstrap — appli
 
 | | Staging | Production |
 |---|---|---|
-| **URL** | https://staging.volt-app.dev | https://volt-app.dev |
+| **URL** | _(see `values-staging.yaml`)_ | _(see `values-production.yaml`)_ |
 | **EKS cluster** | `energy-drain-staging` | `energy-drain-production` |
 | **Namespace** | `energy-drain-staging` | `energy-drain-production` |
 | **ArgoCD branch** | `staging` | `production` |
@@ -40,7 +40,7 @@ The chart deploys the following into each environment's namespace:
 - **nginx** — Frontend reverse proxy. Internet-facing AWS ALB Ingress with HTTPS redirect and ACM certificate.
 - **ServiceMonitor** — Wired to the `kube-prometheus-stack` in the `monitoring` namespace for Prometheus scraping and Grafana dashboards.
 
-On production only, **external-dns** runs as a separate ArgoCD Application and syncs the `volt-app.dev` Route 53 A record to the ALB automatically.
+On production only, **external-dns** runs as a separate ArgoCD Application and syncs the production Route 53 A record to the ALB automatically.
 
 ## Pipeline Architecture
 
@@ -82,7 +82,7 @@ Manual `workflow_dispatch`. Running this workflow is the production approval gat
 2. Syncs image tags from `values-staging.yaml` into `values-production.yaml` — production always runs the tested staging images
 3. Fast-forwards the `production` branch to that SHA
 4. Production ArgoCD (auto-sync on the `production` branch) picks up the change and deploys within ~3 minutes
-5. Runs production smoke tests post-deploy (skipped if `volt-app.dev` doesn't resolve yet)
+5. Runs production smoke tests post-deploy (skipped if the production hostname doesn't resolve yet)
 
 ## GitOps Workflow
 
@@ -99,7 +99,7 @@ staging branch fast-forwarded
 Staging ArgoCD syncs (values-staging.yaml, energy-drain-staging namespace)
      │ ~2 min
      ▼
-CD Tests run against staging.volt-app.dev
+CD Tests run against the staging hostname
      │ all suites pass
      ▼
 Human runs "Promote to Production" workflow (Actions tab)
@@ -111,7 +111,7 @@ production branch fast-forwarded (image tags synced from staging)
 Production ArgoCD syncs (values-production.yaml, energy-drain-production namespace)
      │
      ▼
-volt-app.dev serves the promoted build
+Production hostname serves the promoted build
 ```
 
 **Branch model:**
@@ -123,8 +123,8 @@ volt-app.dev serves the promoted build
 
 Both clusters use AWS ALB Ingress. DNS management differs per environment:
 
-- **Staging** — external-dns was installed out-of-band on the staging cluster. It watches Ingress resources and auto-creates Route 53 A records for `staging.volt-app.dev`.
-- **Production** — external-dns is deployed as an ArgoCD Application (`argocd/external-dns-production.yaml`), using IRSA role `energy-drain-production-external-dns` to write Route 53 records for `volt-app.dev`.
+- **Staging** — external-dns was installed out-of-band on the staging cluster. It watches Ingress resources and auto-creates the Route 53 A record for the staging hostname.
+- **Production** — external-dns is deployed as an ArgoCD Application (`argocd/external-dns-production.yaml`), using IRSA role `energy-drain-production-external-dns` to write the Route 53 record for the production hostname.
 
 The `external-dns-production` ArgoCD Application is a **bootstrap manifest** — it must be applied manually once when setting up the production cluster (see Disaster Recovery below). It is not applied by the CI/CD pipelines.
 
@@ -194,7 +194,7 @@ Everything ArgoCD manages is recovered from git, but the following live outside 
    kubectl apply -f argocd/energy-drain-staging.yaml
    ```
 
-5. **ACM certificate** for `staging.volt-app.dev` in `ap-south-1`. If re-issued, update `alb.ingress.kubernetes.io/certificate-arn` in `values-staging.yaml`.
+5. **ACM certificate** for the staging hostname in `ap-south-1`. If re-issued, update `alb.ingress.kubernetes.io/certificate-arn` in `values-staging.yaml`.
 
 6. **The MONGO_URL secret** — `scripts/set-staging-mongo-secret.sh`.
 
@@ -207,7 +207,7 @@ Everything ArgoCD manages is recovered from git, but the following live outside 
    kubectl apply -f argocd/external-dns-production.yaml
    ```
 
-5. **ACM certificate** for `volt-app.dev` in `ap-south-1`. If re-issued, update `alb.ingress.kubernetes.io/certificate-arn` in `values-production.yaml`.
+5. **ACM certificate** for the production hostname in `ap-south-1`. If re-issued, update `alb.ingress.kubernetes.io/certificate-arn` in `values-production.yaml`.
 
 6. **The MONGO_URL secret** — `production/energy-drain/mongo-url` in Secrets Manager.
 
