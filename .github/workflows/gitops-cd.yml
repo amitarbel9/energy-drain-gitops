@@ -63,6 +63,8 @@ jobs:
       performance: ${{ steps.plan.outputs.performance }}
       rollback_drill: ${{ steps.plan.outputs.rollback_drill }}
       cluster_access: ${{ steps.plan.outputs.cluster_access }}
+      runner_sg_id: ${{ steps.widen.outputs.sg_id }}
+      runner_ip: ${{ steps.widen.outputs.runner_ip }}
     steps:
       - name: Decide which suites run
         id: plan
@@ -116,6 +118,62 @@ jobs:
             echo "No cluster access - sleeping 120s as fallback"
             sleep 120
           fi
+
+      # Staging's ALB security group only allows inbound from one known IP
+      # (alb.ingress.kubernetes.io/inbound-cidrs in values-staging.yaml) -
+      # GitHub-hosted runners use a different, rotating IP on every run, so
+      # every job below that hits $BASE_URL over the public internet would
+      # otherwise get a connection-level failure (curl "000", no TLS
+      # handshake at all), not an application error. This temporarily adds
+      # just this run's runner IP to that same security group so the tests
+      # can reach it - "summary" (which always runs last) removes it again.
+      #
+      # This is safe from the AWS Load Balancer Controller reconciling it
+      # away mid-run: its --sync-period is 10h by default, and it only acts
+      # on this Ingress again if the Ingress itself changes - confirmed
+      # directly against the controller's own --help output before relying
+      # on it here, not assumed.
+      - name: Configure AWS credentials (for security group whitelist)
+        if: >-
+          steps.plan.outputs.cluster_access == 'true' &&
+          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow this runner's IP through the staging ALB
+        id: widen
+        if: >-
+          steps.plan.outputs.cluster_access == 'true' &&
+          (steps.plan.outputs.deploy_tests == 'true' || steps.plan.outputs.performance == 'true')
+        run: |
+          RUNNER_IP=$(curl -s --max-time 10 https://checkip.amazonaws.com)
+          if [ -z "$RUNNER_IP" ]; then
+            echo "::error::could not determine this runner's public IP"
+            exit 1
+          fi
+
+          SG_ID=$(aws ec2 describe-security-groups --region "$AWS_REGION" \
+            --filters \
+              "Name=tag:elbv2.k8s.aws/cluster,Values=$EKS_CLUSTER" \
+              "Name=tag:ingress.k8s.aws/resource,Values=ManagedLBSecurityGroup" \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::could not find the staging ALB's managed security group"
+            exit 1
+          fi
+
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
+
+          aws ec2 authorize-security-group-ingress --region "$AWS_REGION" \
+            --group-id "$SG_ID" --protocol tcp --port 443 \
+            --cidr "${RUNNER_IP}/32" \
+            --tag-specifications "ResourceType=security-group-rule,Tags=[{Key=purpose,Value=gitops-cd-temporary-ci-access},{Key=run_id,Value=${{ github.run_id }}}]" \
+          || echo "::notice::rule for $RUNNER_IP/32 may already exist - continuing"
+
+          echo "temporarily allowed $RUNNER_IP/32 on port 443 in $SG_ID for this run"
 
   # ---------------------------------------------------------------- smoke --
   smoke-tests:
@@ -1114,7 +1172,32 @@ jobs:
       - performance-tests
     if: always() && needs.setup.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # for AWS OIDC (revoke-the-temporary-SG-rule step)
     steps:
+      # Always runs, even if every test job failed - this is a security
+      # rule, not a report, and must not be left open. Tolerant of the
+      # rule already being gone (e.g. setup itself failed before adding
+      # it) - a missing rule to revoke isn't a failure worth blocking on.
+      - name: Configure AWS credentials (for security group cleanup)
+        if: needs.setup.outputs.runner_sg_id != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Remove this run's temporary ALB security group access
+        if: needs.setup.outputs.runner_sg_id != ''
+        env:
+          SG_ID: ${{ needs.setup.outputs.runner_sg_id }}
+          RUNNER_IP: ${{ needs.setup.outputs.runner_ip }}
+        run: |
+          aws ec2 revoke-security-group-ingress --region "$AWS_REGION" \
+            --group-id "$SG_ID" --protocol tcp --port 443 \
+            --cidr "${RUNNER_IP}/32" \
+          || echo "::notice::rule for $RUNNER_IP/32 was already gone - nothing to clean up"
+          echo "revoked temporary access for $RUNNER_IP/32 from $SG_ID"
+
       - name: Report
         env:
           CLUSTER_ACCESS: ${{ needs.setup.outputs.cluster_access }}
