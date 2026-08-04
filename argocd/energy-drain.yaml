@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/mild-byte/energy-drain-gitops.git
+    repoURL: https://github.com/amitarbel9/energy-drain-gitops.git
     targetRevision: local
     path: charts/energy-drain-app
     helm:

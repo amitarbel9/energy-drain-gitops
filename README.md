@@ -164,7 +164,7 @@ Everything ArgoCD manages is recovered from git, but the following live outside 
    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
    kubectl create secret generic repo-energy-drain-gitops -n argocd \
      --from-literal=type=git \
-     --from-literal=url=https://github.com/mild-byte/energy-drain-gitops.git \
+     --from-literal=url=https://github.com/amitarbel9/energy-drain-gitops.git \
      --from-literal=username=git \
      --from-literal=password=<GitHub PAT with read access to this repo>
    kubectl label secret repo-energy-drain-gitops -n argocd argocd.argoproj.io/secret-type=repository
@@ -184,7 +184,7 @@ Everything ArgoCD manages is recovered from git, but the following live outside 
    ```
    Do NOT omit `serviceMonitorSelectorNilUsesHelmValues=false` — without it Prometheus silently ignores the app's ServiceMonitor.
 
-3. **ECR images** — the tags referenced in the values files must exist in ECR (`523555653711.dkr.ecr.ap-south-1.amazonaws.com`). If the registry was wiped, re-run the latest CI build in `mild-byte/energy-drain-app`.
+3. **ECR images** — the tags referenced in the values files must exist in ECR (`523555653711.dkr.ecr.ap-south-1.amazonaws.com`). If the registry was wiped, re-run the latest CI build in `amitarbel9/energy-drain-app`.
 
 ### Staging cluster
 
