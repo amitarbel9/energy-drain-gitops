@@ -77,7 +77,7 @@ ingress:
     # Certificate Transparency logs regardless of whether it's linked
     # anywhere). Update this if the IP changes - most ISP connections are
     # dynamic, so this will need revisiting if staging access breaks.
-    alb.ingress.kubernetes.io/inbound-cidrs: 176.228.212.1/32
+    alb.ingress.kubernetes.io/inbound-cidrs: 176.228.207.87/32
   hosts:
     - host: staging.volt-app.dev
       paths:
