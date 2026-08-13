@@ -70,7 +70,7 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/4f4f6df1-b99d-49cf-8603-247dc471bb75
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:523555653711:certificate/2ad8a294-7c91-4420-b505-d0ff7faef58f
     # Staging is restricted to a single known IP - unlike production, there's
     # no reason for the public internet to reach it, and it's otherwise a
     # 24/7 target for scanners/bots (the hostname is discoverable via public
